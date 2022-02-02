@@ -7,9 +7,9 @@
 | LigPlot   | :grey_question:    | :grey_question:    | :grey_question:    | :x:                | :x:                |
 | PUResNet  | :grey_question:    | :grey_question:    | :grey_question:    | :x:                | :x:                |
 | ProLIF    | :grey_question:    | :grey_question:    | :grey_question:    | :x:                | :x:                |
-| PyBioMed  | :grey_question:    | :grey_question:    | :grey_question:    | :x:                | :x:                |
+| PyBioMed  | :grey_question:    | :grey_question:    | :grey_question:    | :white_check_mark: | :x:                |
 | MONN      | :grey_question:    | :grey_question:    | :grey_question:    | :x:                | :x:                |
-| biobb     | :grey_question:    | :grey_question:    | :grey_question:    | :x:                | :x:                |
+| biobb     | :grey_question:    | :grey_question:    | :grey_question:    | :white_check_mark: | :white_check_mark: |
 
 
 :white_check_mark: : Good
