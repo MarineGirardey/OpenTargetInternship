@@ -3,74 +3,15 @@ from pyspark.sql import SparkSession
 import os
 import requests
 import timeit
-global spark
+import json
+import numpy
+from matplotlib import pyplot as plt
+
+spark = SparkSession.builder.getOrCreate()
 
 '''
 This script retrieves the structures in complex with the molecules from parquet.
-Output example:
-
-ChEmbl ID | PDB_ID | struct
----------------------------
-
 '''
-
-
-def convert_molecule_file_to_dataframe(path_molecule):
-    """
-    Insert all molecules form parquet files in a unique df
-    --------------
-    Keyword arguments
-        path_molecule: path to molecule parquet files
-    --------------
-    Return
-        molecule : a df containing molecules
-    """
-
-    # it for the first molecule insertion
-    it = 0
-
-    for molecule_filename in os.listdir(path_molecule):
-        # Store id column of molecule file in a temporary df
-        temp_df = (
-            spark.read
-            .parquet(path_molecule + molecule_filename, header=True)
-            .select(F.col("id"))
-        )
-
-        # Because union doesn't work for empty df
-        if it == 0:
-            molecule_df = temp_df
-
-        # Add rows from temp_df to the all files df "molecule_df"
-        else:
-            molecule_df = molecule_df.union(temp_df)
-
-        it += 1
-
-    return molecule_df
-
-
-def join_molecule_and_unichem_df(molecule_df, unichem_df):
-    """
-    Join df with all molecules and df with UniChem ID in one df
-    --------------
-    Keyword arguments
-        molecule_df: df with all molecules from parquet files
-        unichem_df: df with molecules ID from UniChem
-    --------------
-    Return
-        molecule_in_unichem_df : a df with only molecules from parquet retrieved in UniChem (with UniChem ID)
-    """
-
-    molecule_in_unichem_df = (molecule_df
-                              .join(unichem_df, unichem_df["From src:'1'"] == molecule_df["id"])
-                              .withColumnRenamed("id", "MOLECULE_ID")
-                              .withColumnRenamed("From src:'1'", "CHEMBL_ID")
-                              .withColumnRenamed("To src:'3'", "PDB_ID")
-                              )
-    molecule_in_unichem_df = molecule_in_unichem_df.drop('MOLECULE_ID')
-
-    return molecule_in_unichem_df
 
 
 def get_structure(pdb_id):
@@ -84,107 +25,143 @@ def get_structure(pdb_id):
     Return
         data[pdb_id] : data is a dictionary, we want the value which is the list of structures
     """
-
     url = f'https://www.ebi.ac.uk/pdbe/api/pdb/compound/in_pdb/{pdb_id}'
     response = requests.get(url)
     try:
         data = response.json()
         return data[pdb_id]
     except:
-        return None
+        if len(response.json()) == 0:
+            return []
 
 
-def apply_get_structure_function_on_df(unichem_molecule_joined_df):
-    """
-    Apply on a df column the get_structure function to associate for each PDB ID the structures in complex with
-    --------------
-    Keyword arguments
-        unichem_molecule_joined_df: df with UniChem ID and PDB ID
-    --------------
-    Return
-        unichem_molecule_struct_pd_df: pandas df with UniChem ID, PDB ID and list of structures
-    """
+def create_pdb_target_gene_df(path_id_file, unichem_molecule_struct_spark_df):
 
-    unichem_molecule_struct_pd_df = (unichem_molecule_joined_df
-                                     .toPandas()
-                                     .assign(struct=lambda x: x['PDB_ID'].apply(get_structure)))
-    return unichem_molecule_struct_pd_df
+    pdb_chain_ensembl = spark.read.csv(path_id_file, sep=',', header=True, comment='#')
+    pdb_chain_ensembl = pdb_chain_ensembl.select('PDB', 'GENE_ID').distinct()
 
+    # print('----- STRUCTURE & TARGET -----')
+    # pdb_chain_ensembl.show()
 
-def all_statistics(unichem_molecule_df, unichem_molecule_struct_pd_df, unichem_molecule_struct_spark_df, molecule_df, unichem_df):
-    """
-    Compute statistics for our knowledge
-    --------------
-    Keyword arguments
-        unichem_molecule_df: df with UniChem ID and molecule ID
-        unichem_molecule_struct_pd_df: pandas df with UniChem ID, molecule ID and structures
-        unichem_molecule_struct_spark_df: same but spark df
-        molecule_df: df only with molecule ID
-        unichem_df: df only with UniChem ID
-    --------------
-    Return
-        total_nb_unichem: number of molecule in UniChem BDD
-        total_nb_molecule: number of molecule in all parquet files
-        nb_molecule_in_unichem: number of our molecule found in UniChem
-        percentage_molecule_in_unichem: percentage of molecules in UniChem
-        total_nb_struct: total number of structure
-        nb_molecule_with_struct: number of molecule with structures
-    """
+    exploded_df = (unichem_molecule_struct_spark_df
+                   .select('MOLECULE_PDB_ID',
+                           'MOLECULE_CHEMBL_ID',
+                           F.explode(unichem_molecule_struct_spark_df.STRUCTURE_ID)))
 
-    total_nb_unichem = unichem_df.count()
-    total_nb_molecule = molecule_df.count()
-    nb_molecule_in_unichem = unichem_molecule_df.count()
-    percentage_molecule_in_unichem = (nb_molecule_in_unichem / total_nb_molecule) * 100
-    total_nb_struct = len(unichem_molecule_struct_pd_df.explode('struct'))
-    nb_molecule_with_struct = unichem_molecule_struct_spark_df.count()
+    # print('----- STRUCTURE & TARGET EXPLODED -----')
+    # exploded_df.show()
 
-    return total_nb_unichem, total_nb_molecule, nb_molecule_in_unichem, percentage_molecule_in_unichem, total_nb_struct, nb_molecule_with_struct
+    chain_ensembl_struct_mol_joined = (pdb_chain_ensembl
+                                       .join(exploded_df, pdb_chain_ensembl["PDB"] == exploded_df["col"])
+                                       .drop('col'))
+
+    return chain_ensembl_struct_mol_joined
 
 
 def main():
-    start1 = timeit.default_timer()
-    spark = SparkSession.builder.getOrCreate()
 
-    path_molecule_files = '/molecule/'
-    path_unichem_file = '/id_files/src1src3.txt'
+    # TIMER 1 START
+    start_1 = timeit.default_timer()
 
+    # PATHS
+    path_to_folder = '/Users/marinegirardey/Documents/opentarget_internship/OpenTargetInternship/'
+    path_molecule_files = path_to_folder + 'molecule/'
+    path_molecule_small_folder = path_to_folder + 'small_folder/'
+    path_unichem_file = path_to_folder + 'id_files/src1src3.txt'
+    path_pdb_chain_ensembl = path_to_folder + 'fourth_week/pdb_chain_ensembl.csv'
+
+    # ----- GET MOLECULE ID -----
+    # Molecule DataFrame
+    molecule_df = (
+        spark.read
+        .parquet(path_molecule_files, header=True)
+        .select(F.col('id'))
+        .withColumnRenamed('id', 'MOLECULE_CHEMBL_ID')
+    )
+
+    # ----- GET PDB ID -----
+    # Unichem molecules DataFrame
     unichem_df = spark.read.csv(path_unichem_file, sep=r'\t', header=True)
 
-    molecule_df = convert_molecule_file_to_dataframe(path_molecule_files)
-    unichem_molecule_joined_df = join_molecule_and_unichem_df(molecule_df, unichem_df)
+    # Join Unichem and Molecule DataFrame
+    unichem_molecule_df = (molecule_df
+                           .join(unichem_df, unichem_df["From src:'1'"] == molecule_df['MOLECULE_CHEMBL_ID'])
+                           .withColumnRenamed("To src:'3'", 'MOLECULE_PDB_ID')
+                           .drop("From src:'1'")
+                           )
 
-    start2 = timeit.default_timer()
-    unichem_molecule_struct_pd_df = apply_get_structure_function_on_df(unichem_molecule_joined_df)
+    # TIMER 2 START
+    start_2 = timeit.default_timer()
+
+    # ----- GET STRUCTURE ID -----
+    # Apply get_structure function on the Unichem-Molecule DataFrame
+    unichem_molecule_struct_pd_df = (unichem_molecule_df
+                                     .toPandas()
+                                     .assign(STRUCTURE_ID=lambda x: x['MOLECULE_PDB_ID'].apply(get_structure)))
+    unichem_molecule_struct_pd_df.to_csv('structure_of_molecules.csv', index=False, header=True)
+
+    # Convert Spark DataFrame into Pandas DataFrame
     unichem_molecule_struct_spark_df = spark.createDataFrame(unichem_molecule_struct_pd_df)
-    stop2 = timeit.default_timer()
 
-    unichem_molecule_struct_pd_df.to_csv("structure_of_molecules.csv", index=False, header=True)
+    # TIMER 2 STOP
+    stop_2 = timeit.default_timer()
 
-    statistics = all_statistics(unichem_molecule_joined_df,
-                                unichem_molecule_struct_pd_df,
-                                unichem_molecule_struct_spark_df,
-                                molecule_df,
-                                unichem_df)
+    # ----- GET TARGET ID -----
+    pdb_target_df = create_pdb_target_gene_df(path_pdb_chain_ensembl, unichem_molecule_struct_spark_df)
+    # function.to_csv("chain_ensembl_struct_mol_joined.csv", index=False, header=True)
 
-    stop1 = timeit.default_timer()
+    # ----- STATISTICS -----
+    total_nb_unichem = unichem_df.count()
+    total_nb_molecule = molecule_df.count()
+    nb_mol_in_unichem = unichem_molecule_df.count()
 
-    return statistics, start1, stop1, start2, stop2
+    total_nb_struct = len(unichem_molecule_struct_pd_df.explode('STRUCTURE_ID'))
+
+    nb_target_pd = pdb_target_df.count()
+    nb_human_target = pdb_target_df.filter(pdb_target_df.GENE_ID.startswith('ENSG')).count()
+
+    count_distinct_target_pd_df = pdb_target_df.groupBy('GENE_ID').count().toPandas()
+    nb_molecule_without_struct = unichem_molecule_struct_spark_df.filter(F.size('STRUCTURE_ID') == 0).count()
+
+    nb_non_human_target = nb_target_pd - nb_human_target
+
+    # TIMER 1 STOP
+    stop_1 = timeit.default_timer()
+
+    statistics = [
+        ['Total molecules in UniChem database', total_nb_unichem],
+        ['Molecules in parquet', total_nb_molecule],
+        ['Molecules from parquet found in UniChem', nb_mol_in_unichem],
+        ['Percentage of parquet molecule found in UniChem', int(round((nb_mol_in_unichem / total_nb_molecule) * 100, 2))],
+        ['Total structures', total_nb_struct],
+        ['Molecules without structure', nb_molecule_without_struct],
+        ['Total targets', nb_target_pd],
+        ['Human target', nb_human_target],
+        ['None human target', nb_non_human_target],
+        ['Total time running', int(round(stop_1 - start_1, 2))],
+        ['Time for scrap structure on API', int(round(stop_2 - start_2, 2))]
+    ]
+
+    columns = ["Stats", "Count"]
+
+    stats_df = spark.createDataFrame(statistics, columns)
+
+    return stats_df, molecule_df, unichem_df, unichem_molecule_df, unichem_molecule_struct_spark_df, pdb_target_df
 
 
 if __name__ == '__main__':
     main = main()
-    stats = main[0]
-    start1 = main[1]
-    stop1 = main[2]
-    start2 = main[3]
-    stop2 = main[4]
 
-    print('Total time running of the script: ', round(stop1 - start1, 2))
-    print('With ', round(stop2 - start2, 2), 'of time for scrap the structure for each molecule on the API')
+    print('----STATISTICS----')
+    main[0].show(truncate=False)
 
-    print("Counting: %s molecules in UniChem in total" % stats[0])
-    print("Counting: %s molecules from parquet in total" % stats[1])
-    print("Counting: %s of our molecules in UniChem" % stats[2])
-    print("%s of molecules are in UniChem" % (str(round(stats[3], 2)) + '%'))
-    print("Counting: %s structures int total" % stats[4])
-    print("Counting: %s molecules with structure(s)" % stats[5])
+    print('----MOLECULE----')
+    main[1].show()
+    print('----UNICHEM MOLECULE----')
+    main[2].show()
+    print('----OUR MOLECULE IN UNICHEM (PDB ID)----')
+    main[3].show()
+    print('----STRUCTURE----')
+    main[4].show()
+    print('----TARGET----')
+    main[5].show()
