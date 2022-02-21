@@ -1,4 +1,4 @@
-import pyspark.sql.functions as F
+import pyspark.sql.functions as f
 from pyspark.sql import SparkSession
 import os
 import requests
@@ -46,7 +46,7 @@ def create_pdb_target_gene_df(path_id_file, unichem_molecule_struct_spark_df):
     exploded_df = (unichem_molecule_struct_spark_df
                    .select('MOLECULE_PDB_ID',
                            'MOLECULE_CHEMBL_ID',
-                           F.explode(unichem_molecule_struct_spark_df.STRUCTURE_ID)))
+                           f.explode(unichem_molecule_struct_spark_df.STRUCTURE_ID)))
 
     # print('----- STRUCTURE & TARGET EXPLODED -----')
     # exploded_df.show()
@@ -75,7 +75,7 @@ def main():
     molecule_df = (
         spark.read
         .parquet(path_molecule_files, header=True)
-        .select(F.col('id'))
+        .select(f.col('id'))
         .withColumnRenamed('id', 'MOLECULE_CHEMBL_ID')
     )
 
@@ -108,20 +108,25 @@ def main():
 
     # ----- GET TARGET ID -----
     pdb_target_df = create_pdb_target_gene_df(path_pdb_chain_ensembl, unichem_molecule_struct_spark_df)
-    # function.to_csv("chain_ensembl_struct_mol_joined.csv", index=False, header=True)
+    pdb_target_df.toPandas().to_csv("molecule_structure_target.csv", index=False, header=True)
 
     # ----- STATISTICS -----
     total_nb_unichem = unichem_df.count()
     total_nb_molecule = molecule_df.count()
     nb_mol_in_unichem = unichem_molecule_df.count()
 
-    total_nb_struct = len(unichem_molecule_struct_pd_df.explode('STRUCTURE_ID'))
+    total_nb_struct = unichem_molecule_struct_spark_df.withColumn('STRUCTURE_ID', f.explode('STRUCTURE_ID')).select(
+        'STRUCTURE_ID').distinct().count()
+
+    print(total_nb_struct)
+
+
 
     nb_target_pd = pdb_target_df.count()
     nb_human_target = pdb_target_df.filter(pdb_target_df.GENE_ID.startswith('ENSG')).count()
 
     count_distinct_target_pd_df = pdb_target_df.groupBy('GENE_ID').count().toPandas()
-    nb_molecule_without_struct = unichem_molecule_struct_spark_df.filter(F.size('STRUCTURE_ID') == 0).count()
+    nb_molecule_without_struct = unichem_molecule_struct_spark_df.filter(f.size('STRUCTURE_ID') == 0).count()
 
     nb_non_human_target = nb_target_pd - nb_human_target
 
@@ -165,3 +170,5 @@ if __name__ == '__main__':
     main[4].show()
     print('----TARGET----')
     main[5].show()
+
+    print('Process finished!')
