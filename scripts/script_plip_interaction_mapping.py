@@ -22,7 +22,7 @@ from plip.structure.preparation import PDBComplex, PLInteraction
 from plip.exchange.report import BindingSiteReport
 from plip.basic import config
 
-import swifter
+import dask.dataframe as dd
 
 from itertools import chain
 
@@ -58,9 +58,18 @@ def main():
 
     logging.info('Start compute PLIP interactions with Swifter parallelisation.')
 
-    input_dataset['new_col'] = input_dataset.swifter.apply(
-        lambda row: characerize_complex(*row), axis=1
+    ddf = dd.from_pandas(input_dataset, npartitions=args.nb_partitions)
+
+    input_dataset = (
+        ddf
+        .assign(
+            new_col = ddf.map_partitions(
+                lambda df: df.apply(lambda row: characerize_complex(row), axis=1), meta=(None, 'f8')
+            )
+    #        .map_partitions(lambda df: df.apply(run_plip, axis=1), meta=(None, 'f8'))
         )
+        .compute(scheduler='processes')
+    )
 
     logging.info('PLIP interaction computations finished.')
 
@@ -149,10 +158,10 @@ def parse_interaction(interaction: PLInteraction, compound_id:str, pdb_id:str) -
     }
 
 
-def characerize_complex(pdb_id, compounds):
+def characerize_complex(row):
     # Get pdb data:
-    # pdb_id = row['pdbStructureId']
-    # compounds = row['pdbCompoundId']
+    pdb_id = row['pdbStructureId']
+    compounds = row['pdbCompoundId']
     
     gpdb = GetPDB(data_folder=args.pdb_folder)
 
@@ -192,7 +201,7 @@ if __name__ == '__main__':
     global spark
 
     program_description = '''
-    Something.
+    Compute PLIP interactions between PDB structures and compounds (Drugs).
     '''
 
     parser = argparse.ArgumentParser(add_help=True, description=program_description)
@@ -219,6 +228,14 @@ if __name__ == '__main__':
                         default=None,
                         metavar='pdb_folder_path',
                         type=str,
+                        required=True)
+    
+    parser.add_argument('-p',
+                        '--nb_partitions',
+                        help='Number of Dask partitions (I build 30 partitions with 8 cores).',
+                        default=None,
+                        metavar='nb_dask_partitions',
+                        type=int,
                         required=True)
 
     args = parser.parse_args()
