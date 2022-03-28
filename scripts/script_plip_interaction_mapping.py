@@ -23,6 +23,7 @@ from plip.exchange.report import BindingSiteReport
 from plip.basic import config
 
 import dask.dataframe as dd
+from pandarallel import pandarallel
 
 from itertools import chain
 
@@ -31,11 +32,14 @@ import logging
 import argparse
 
 import sys
+from dask.distributed import Client
 
 
 def main():
 
-    logging.info('Program begin.')
+    logging.warning('Program begin.')
+
+    client = Client()  # start distributed scheduler locally.  Launch dashboard
 
     config.DNARECEPTOR = True
 
@@ -46,7 +50,7 @@ def main():
         .getOrCreate()
     )
 
-    logging.info('Loading input.')
+    logging.warning('Loading input.')
 
     # Dataset witht all the details, produced earlier:
     input_dataset = (
@@ -56,7 +60,9 @@ def main():
         .toPandas()
     )
 
-    logging.info('Start compute PLIP interactions with Swifter parallelisation.')
+    logging.warning('Start compute PLIP interactions with Swifter parallelisation.')
+
+    # PARALLELISATION METHODS
 
     ddf = dd.from_pandas(input_dataset, npartitions=args.nb_partitions)
 
@@ -70,6 +76,12 @@ def main():
         )
         .compute(scheduler='processes')
     )
+    
+    # pandarallel.initialize()
+
+    # input_dataset['new_col'] = input_dataset.parallel_apply(
+    #     characerize_complex, axis=1
+    # )
 
     logging.info('PLIP interaction computations finished.')
 
@@ -96,18 +108,24 @@ class GetPDB:
     
     def get_pdb(self, pdb_structure_id: str) -> str:
         """Reading file from a given loaction fetch and save if not found"""
+    
+        logging.warning(f'Start searching the file.')
+    
         try:
             # Readind data from the given location:
             with open(f'{self.data_folder}/pdb{pdb_structure_id}.ent', 'rt') as f:
                 data = f.read()
     
         except FileNotFoundError:
+            logging.warning(f'Start loading the file.')
             # Fetch data from the web
             data = self.fetch_pdb(pdb_structure_id)
             
             # Save file
             with open(f'{self.data_folder}/pdb{pdb_structure_id}.ent', 'wt') as f:
                 f.write(data)
+        
+        logging.warning(f'File obtained.')
     
         return data
     
@@ -136,6 +154,8 @@ class GetPDB:
     
         except:
             data = ''
+    
+        logging.warning(f'File obtained or exception while scrapping.')
 
         return data
 
@@ -163,6 +183,8 @@ def characerize_complex(row):
     pdb_id = row['pdbStructureId']
     compounds = row['pdbCompoundId']
     
+    logging.warning(f'Characerize_complex: {pdb_id, compounds}')
+    
     gpdb = GetPDB(data_folder=args.pdb_folder)
 
     pdb_data = gpdb.get_pdb(pdb_id)
@@ -185,6 +207,8 @@ def characerize_complex(row):
                 
             # Characterizing relevant complex:
             [mol_complex.characterize_complex(ligand) for ligand in ligands_of_interest]
+            
+            logging.warning(f'Sites computation finished.')
 
             # Extract details from ligands:
             return [parse_interaction(interaction, compound.split(':')[0], pdb_id) for compound, interaction_set in mol_complex.interaction_sets.items() for interaction in interaction_set.all_itypes]
@@ -236,17 +260,10 @@ if __name__ == '__main__':
                         default=None,
                         metavar='nb_dask_partitions',
                         type=int,
-                        required=True)
+                        required=False)
 
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s %(levelname)s %(module)s - %(funcName)s: %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S',
-    )
-    logging.StreamHandler(sys.stderr)
-
-    logging.info(program_description)
+    logging.warning(program_description)
 
     main()
