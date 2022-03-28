@@ -16,6 +16,7 @@ pip install --quiet --upgrade pip setuptools
 pip install --quiet --upgrade \
   matplotlib \
   numpy \
+  pandas \
   pyspark \
   requests \
   git+https://github.com/PDBeurope/arpeggio \
@@ -29,5 +30,10 @@ source venv/bin/activate
 
 ## Run the analysis
 ```bash
-
+cd scripts
+time python script_plip_interaction_mapping.py \
+  --input_file structure_for_plip_small_set.csv \
+  --output_file structure_for_plip_small_set_output.csv\
+  --pdb_folder pdb \
+  --nb_partitions 600
 ```
