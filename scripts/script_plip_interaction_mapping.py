@@ -169,6 +169,7 @@ def parse_interaction(interaction: PLInteraction, compound_id:str, pdb_id:str) -
 
 def characerize_complex(row):
 
+    start_time = time.time()
     compounds = row[0]
     pdb_id = row.name
 
@@ -176,11 +177,12 @@ def characerize_complex(row):
     # pdb_id = row['pdbStructureId']
     # compounds = row['pdbCompoundId']
 
-    logging.info(f'Characerize_complex: {pdb_id, compounds}')
+    logging.info(f'Start characerize_complex: {pdb_id, compounds}')
 
     gpdb = GetPDB(data_folder=args.pdb_folder)
 
     pdb_data = gpdb.get_pdb(pdb_id)
+    result = []
 
     if pdb_data:
 
@@ -204,13 +206,10 @@ def characerize_complex(row):
             logging.info(f'Sites computation finished.')
 
             # Extract details from ligands:
-            return [parse_interaction(interaction, compound.split(':')[0], pdb_id) for compound, interaction_set in mol_complex.interaction_sets.items() for interaction in interaction_set.all_itypes]
+            result = [parse_interaction(interaction, compound.split(':')[0], pdb_id) for compound, interaction_set in mol_complex.interaction_sets.items() for interaction in interaction_set.all_itypes]
 
-        else:
-            return []
-
-    else:
-        return []
+    logging.info(f'Done characerize_complex {pdb_id} with ligands {compounds} in {time.time()} seconds')
+    return result
 
 
 if __name__ == '__main__':
