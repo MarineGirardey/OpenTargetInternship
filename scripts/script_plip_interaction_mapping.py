@@ -208,7 +208,9 @@ def characerize_complex(row):
             # Extract details from ligands:
             result = [parse_interaction(interaction, compound.split(':')[0], pdb_id) for compound, interaction_set in mol_complex.interaction_sets.items() for interaction in interaction_set.all_itypes]
 
-    logging.info(f'Done characerize_complex {pdb_id} with ligands {compounds} in {time.time()} seconds')
+    logging.info(f'Done characerize_complex {pdb_id} with ligands {compounds}')
+    # Log the complex info data: PDB ID, list of ligands, size of data, processing time in seconds.
+    logging.info(f'COMPLEX_INFO\t{pdb_id}\t{compounds}\t{len(pdb_data)}\t{time.time()-start_time}')
     return result
 
 
