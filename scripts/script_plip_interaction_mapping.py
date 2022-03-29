@@ -264,7 +264,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    logging.basicConfig(filename=args.log_file, encoding='utf-8', level=logging.INFO, force=True)
+    logging.basicConfig(filename=args.log_file, level=logging.INFO, force=True)
 
     logging.info(program_description)
 
