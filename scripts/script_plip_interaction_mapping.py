@@ -4,6 +4,7 @@ from json import JSONDecodeError
 import requests
 from functools import reduce
 import pandas as pd
+import psutil
 
 from plip.basic import config
 
@@ -28,13 +29,13 @@ import time
 
 def main():
 
-    logging.warning('Program begin.')
+    logging.info('Program begin.')
 
     client = Client()  # start distributed scheduler locally.  Launch dashboard
 
     config.DNARECEPTOR = True
 
-    logging.warning('Loading input.')
+    logging.info('Loading input.')
 
     # Dataset witht all the details, produced earlier:
     input_dataset = (
@@ -57,8 +58,11 @@ def main():
     #    )
     #    .compute(scheduler='processes')
     # )
-    
-    pandarallel.initialize()
+
+    pandarallel.initialize(
+        nb_workers=psutil.cpu_count(),
+        progress_bar=True,
+    )
 
     input_dataset['new_col'] = input_dataset.parallel_apply(
         characerize_complex, axis=1
@@ -80,39 +84,39 @@ def main():
 
 
 class GetPDB:
-    
+
     PDB_URL = 'https://www.ebi.ac.uk/pdbe/entry-files/download/pdb{}.ent'
-    
+
     def __init__(self, data_folder: str) -> None:
         self.data_folder = data_folder
-        
-    
+
+
     def get_pdb(self, pdb_structure_id: str) -> str:
         """Reading file from a given loaction fetch and save if not found"""
-    
-        logging.warning(f'Start searching the file.')
-    
+
+        logging.info(f'Start searching the file.')
+
         try:
             # Readind data from the given location:
             with open(f'{self.data_folder}/pdb{pdb_structure_id}.ent', 'rt') as f:
-                logging.warning(f'try.')
+                logging.info(f'try.')
                 data = f.read()
-                logging.warning(f'try ok.')
-    
+                logging.info(f'try ok.')
+
         except FileNotFoundError:
-            logging.warning(f'except.')
+            logging.info(f'except.')
             # Fetch data from the web
             data = self.fetch_pdb(pdb_structure_id)
-            
+
             # Save file
             with open(f'{self.data_folder}/pdb{pdb_structure_id}.ent', 'wt') as f:
                 f.write(data)
-                logging.warning(f'except ok.')
+                logging.info(f'except ok.')
 
-        logging.warning(f'File obtained.')
-    
+        logging.info(f'File obtained.')
+
         return data
-    
+
 
     def fetch_pdb(self, pdb_structure_id: str)-> str:
         """This function fetches the pdb file from ePDB server as a string
@@ -123,9 +127,9 @@ class GetPDB:
             structure data in pdb format as string eg 'AIN:A:1202'
         """
         data = ""
-    
+
         headers={'Content-Type': 'text/plain'}
-    
+
         if not pdb_structure_id:
             return ''
 
@@ -135,11 +139,11 @@ class GetPDB:
                 pass
             else:
                 data = response.text
-    
+
         except:
             data = ''
-    
-        logging.warning(f'File obtained or exception while scrapping.')
+
+        logging.info(f'File obtained or exception while scrapping.')
 
         return data
 
@@ -147,7 +151,7 @@ class GetPDB:
 def parse_interaction(interaction: PLInteraction, compound_id:str, pdb_id:str) -> dict:
 
     interaction_type = interaction.__doc__.split('(')[0]
-    
+
     if interaction_type == 'waterbridge':
         return {}
 
@@ -165,6 +169,7 @@ def parse_interaction(interaction: PLInteraction, compound_id:str, pdb_id:str) -
 
 def characerize_complex(row):
 
+    start_time = time.time()
     compounds = row[0]
     pdb_id = row.name
 
@@ -172,41 +177,39 @@ def characerize_complex(row):
     # pdb_id = row['pdbStructureId']
     # compounds = row['pdbCompoundId']
 
-    logging.warning(f'Characerize_complex: {pdb_id, compounds}')
-    
+    logging.info(f'Start characerize_complex: {pdb_id, compounds}')
+
     gpdb = GetPDB(data_folder=args.pdb_folder)
 
     pdb_data = gpdb.get_pdb(pdb_id)
+    result = []
 
     if pdb_data:
 
         # Load into plip:
         mol_complex = PDBComplex()
-        
+
         try:
             mol_complex.load_pdb(pdb_data, as_string=True)
 
         except:
             pass
-        
+
         if mol_complex.ligands:
-            
+
             # Filtering out only the relevant ligands:
             ligands_of_interest = [ligand for ligand in mol_complex.ligands if ligand.hetid in compounds]
-                
+
             # Characterizing relevant complex:
             [mol_complex.characterize_complex(ligand) for ligand in ligands_of_interest]
-            
-            logging.warning(f'Sites computation finished.')
+
+            logging.info(f'Sites computation finished.')
 
             # Extract details from ligands:
-            return [parse_interaction(interaction, compound.split(':')[0], pdb_id) for compound, interaction_set in mol_complex.interaction_sets.items() for interaction in interaction_set.all_itypes]
+            result = [parse_interaction(interaction, compound.split(':')[0], pdb_id) for compound, interaction_set in mol_complex.interaction_sets.items() for interaction in interaction_set.all_itypes]
 
-        else:
-            return []
-    
-    else:
-        return []
+    logging.info(f'Done characerize_complex {pdb_id} with ligands {compounds} in {time.time()} seconds')
+    return result
 
 
 if __name__ == '__main__':
@@ -233,6 +236,14 @@ if __name__ == '__main__':
                         type=str,
                         required=True)
 
+    parser.add_argument('-l',
+                        '--log_file',
+                        help='File to save the logs to.',
+                        default=None,
+                        metavar='log_file',
+                        type=str,
+                        required=True)
+
     parser.add_argument('-f',
                         '--pdb_folder',
                         help='Path to the pdb folder with pdb files downloaded from pdbe website and used by PLIP to compute interactions.',
@@ -240,7 +251,7 @@ if __name__ == '__main__':
                         metavar='pdb_folder_path',
                         type=str,
                         required=True)
-    
+
     parser.add_argument('-p',
                         '--nb_partitions',
                         help='Number of Dask partitions (I build 30 partitions with 8 cores).',
@@ -251,6 +262,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    logging.warning(program_description)
+    logging.basicConfig(filename=args.log_file, encoding='utf-8', level=logging.INFO, force=True)
+
+    logging.info(program_description)
 
     main()
