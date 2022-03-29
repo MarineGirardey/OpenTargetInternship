@@ -14,8 +14,11 @@ python3 -m venv venv
 source venv/bin/activate
 pip install --quiet --upgrade pip setuptools
 pip install --quiet --upgrade \
+  dask \
+  distributed \
   matplotlib \
   numpy \
+  pandarallel \
   pandas \
   pyspark \
   requests \
@@ -31,6 +34,7 @@ source venv/bin/activate
 ## Run the analysis
 ```bash
 cd scripts
+mkdir pdb
 time python script_plip_interaction_mapping.py \
   --input_file structure_for_plip_small_set.csv \
   --output_file structure_for_plip_small_set_output.csv\
