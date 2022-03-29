@@ -28,7 +28,6 @@ import time
 
 
 def main():
-    logging.basicConfig(filename=args.log_file, encoding='utf-8', level=logging.INFO)
 
     logging.info('Program begin.')
 
@@ -263,6 +262,8 @@ if __name__ == '__main__':
                         required=False)
 
     args = parser.parse_args()
+
+    logging.basicConfig(filename=args.log_file, encoding='utf-8', level=logging.INFO, force=True)
 
     logging.info(program_description)
 
