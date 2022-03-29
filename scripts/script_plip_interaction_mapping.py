@@ -4,18 +4,7 @@ from json import JSONDecodeError
 import requests
 from functools import reduce
 import pandas as pd
-from pyspark.sql.functions import (
-    col, udf, struct, lit, split, expr, collect_set, struct, 
-    regexp_replace, min as pyspark_min, explode, when,
-    array_contains, count, first, element_at, size, sum as pyspark_sum, array
-)
-from pyspark.sql.types import (
-    FloatType, ArrayType, StructType, StructField, BooleanType, StringType, IntegerType
-)
-from pyspark.sql import SparkSession
-from pyspark.conf import SparkConf
-from collections import defaultdict
-from pyspark.context import SparkContext
+
 from plip.basic import config
 
 from plip.structure.preparation import PDBComplex, PLInteraction
@@ -33,6 +22,8 @@ import argparse
 
 import sys
 from dask.distributed import Client
+import signal
+import time
 
 
 def main():
@@ -43,45 +34,35 @@ def main():
 
     config.DNARECEPTOR = True
 
-    # establish spark connection
-    spark = (
-        SparkSession.builder
-        .master('local[*]')
-        .getOrCreate()
-    )
-
     logging.warning('Loading input.')
 
     # Dataset witht all the details, produced earlier:
     input_dataset = (
-        spark.read.csv(args.input_file, sep=",", header=True)
-        .groupBy("pdbStructureId")
-        .agg(collect_set(col("pdbCompoundId")).alias("pdbCompoundId"))
-        .toPandas()
+        pd.read_csv(args.input_file, sep=",")
+        .groupby("pdbStructureId")
+        .agg(pd.unique)
     )
-
-    logging.warning('Start compute PLIP interactions with Swifter parallelisation.')
 
     # PARALLELISATION METHODS
 
-    ddf = dd.from_pandas(input_dataset, npartitions=args.nb_partitions)
+    # ddf = dd.from_pandas(input_dataset, npartitions=args.nb_partitions)
 
-    input_dataset = (
-        ddf
-        .assign(
-            new_col = ddf.map_partitions(
-                lambda df: df.apply(lambda row: characerize_complex(row), axis=1), meta=(None, 'f8')
-            )
+    # input_dataset = (
+    #     ddf
+    #    .assign(
+    #         new_col = ddf.map_partitions(
+    #            lambda df: df.apply(lambda row: characerize_complex(row), axis=1), meta=(None, 'f8')
+    #        )
     #        .map_partitions(lambda df: df.apply(run_plip, axis=1), meta=(None, 'f8'))
-        )
-        .compute(scheduler='processes')
-    )
-    
-    # pandarallel.initialize()
-
-    # input_dataset['new_col'] = input_dataset.parallel_apply(
-    #     characerize_complex, axis=1
+    #    )
+    #    .compute(scheduler='processes')
     # )
+    
+    pandarallel.initialize()
+
+    input_dataset['new_col'] = input_dataset.parallel_apply(
+        characerize_complex, axis=1
+    )
 
     logging.info('PLIP interaction computations finished.')
 
@@ -114,17 +95,20 @@ class GetPDB:
         try:
             # Readind data from the given location:
             with open(f'{self.data_folder}/pdb{pdb_structure_id}.ent', 'rt') as f:
+                logging.warning(f'try.')
                 data = f.read()
+                logging.warning(f'try ok.')
     
         except FileNotFoundError:
-            logging.warning(f'Start loading the file.')
+            logging.warning(f'except.')
             # Fetch data from the web
             data = self.fetch_pdb(pdb_structure_id)
             
             # Save file
             with open(f'{self.data_folder}/pdb{pdb_structure_id}.ent', 'wt') as f:
                 f.write(data)
-        
+                logging.warning(f'except ok.')
+
         logging.warning(f'File obtained.')
     
         return data
@@ -178,11 +162,16 @@ def parse_interaction(interaction: PLInteraction, compound_id:str, pdb_id:str) -
     }
 
 
+
 def characerize_complex(row):
+
+    compounds = row[0]
+    pdb_id = row.name
+
     # Get pdb data:
-    pdb_id = row['pdbStructureId']
-    compounds = row['pdbCompoundId']
-    
+    # pdb_id = row['pdbStructureId']
+    # compounds = row['pdbCompoundId']
+
     logging.warning(f'Characerize_complex: {pdb_id, compounds}')
     
     gpdb = GetPDB(data_folder=args.pdb_folder)
@@ -221,8 +210,6 @@ def characerize_complex(row):
 
 
 if __name__ == '__main__':
-
-    global spark
 
     program_description = '''
     Compute PLIP interactions between PDB structures and compounds (Drugs).
