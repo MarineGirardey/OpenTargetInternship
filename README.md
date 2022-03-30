@@ -68,7 +68,7 @@ pip install --quiet --upgrade \
 cd scripts
 mkdir -p pdb
 time python script_plip_interaction_mapping.py \
-  --input_file structure_for_plip.csv \
+  --input_file structure_for_plip_human_structures.csv \
   --output_file output.csv \
   --log_file log.txt \
   --pdb_folder pdb
