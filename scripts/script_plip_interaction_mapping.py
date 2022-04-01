@@ -14,16 +14,11 @@ from plip.basic import config
 
 import dask.dataframe as dd
 from pandarallel import pandarallel
-
 from itertools import chain
 
 import logging
-
 import argparse
-
 import sys
-from dask.distributed import Client
-import signal
 import time
 
 
@@ -31,33 +26,14 @@ def main():
 
     logging.info('Program begin.')
 
-    client = Client()  # start distributed scheduler locally.  Launch dashboard
-
     config.DNARECEPTOR = True
 
     logging.info('Loading input.')
 
     # Dataset witht all the details, produced earlier:
     input_dataset = (
-        pd.read_csv(args.input_file, sep=",")
-        .groupby("pdbStructureId")
-        .agg(pd.unique)
-    )
-
-    # PARALLELISATION METHODS
-
-    # ddf = dd.from_pandas(input_dataset, npartitions=args.nb_partitions)
-
-    # input_dataset = (
-    #     ddf
-    #    .assign(
-    #         new_col = ddf.map_partitions(
-    #            lambda df: df.apply(lambda row: characerize_complex(row), axis=1), meta=(None, 'f8')
-    #        )
-    #        .map_partitions(lambda df: df.apply(run_plip, axis=1), meta=(None, 'f8'))
-    #    )
-    #    .compute(scheduler='processes')
-    # )
+        pd.read_json(args.input_file, lines=True)
+        )
 
     pandarallel.initialize(
         nb_workers=psutil.cpu_count(),
@@ -170,12 +146,9 @@ def parse_interaction(interaction: PLInteraction, compound_id:str, pdb_id:str) -
 def characerize_complex(row):
 
     start_time = time.time()
-    compounds = row[0]
-    pdb_id = row.name
 
-    # Get pdb data:
-    # pdb_id = row['pdbStructureId']
-    # compounds = row['pdbCompoundId']
+    pdb_id = row[0]
+    compounds = row[2]
 
     logging.info(f'Start characerize_complex: {pdb_id, compounds}')
 
@@ -211,6 +184,7 @@ def characerize_complex(row):
     logging.info(f'Done characerize_complex {pdb_id} with ligands {compounds}')
     # Log the complex info data: PDB ID, list of ligands, size of data, processing time in seconds.
     logging.info(f'COMPLEX_INFO\t{pdb_id}\t{compounds}\t{len(pdb_data)}\t{time.time()-start_time}')
+
     return result
 
 
@@ -253,14 +227,6 @@ if __name__ == '__main__':
                         metavar='pdb_folder_path',
                         type=str,
                         required=True)
-
-    parser.add_argument('-p',
-                        '--nb_partitions',
-                        help='Number of Dask partitions (I build 30 partitions with 8 cores).',
-                        default=None,
-                        metavar='nb_dask_partitions',
-                        type=int,
-                        required=False)
 
     args = parser.parse_args()
 
