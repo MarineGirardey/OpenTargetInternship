@@ -21,8 +21,17 @@ import argparse
 import sys
 import time
 
+from pyspark.sql import SparkSession
+
 
 def main():
+
+    # establish spark connection
+    spark = (
+        SparkSession.builder
+        .master('local[*]')
+        .getOrCreate()
+    )
 
     logging.info('Program begin.')
 
@@ -30,10 +39,18 @@ def main():
 
     logging.info('Loading input.')
 
-    # Dataset witht all the details, produced earlier:
+    # # Dataset witht all the details, produced earlier:
+    # input_dataset = (
+    #     pd.read_json(args.input_file, lines=True)
+    #     )
+    
     input_dataset = (
-        pd.read_json(args.input_file, lines=True)
-        )
+        spark.read.json(args.input_file)
+        .select("pdbStructureId", "chains", "compoundIds")
+        .toPandas()
+    )
+
+    print(input_dataset)
 
     pandarallel.initialize(
         nb_workers=psutil.cpu_count(),
@@ -189,6 +206,8 @@ def characerize_complex(row):
 
 
 if __name__ == '__main__':
+
+    global spark
 
     program_description = '''
     Compute PLIP interactions between PDB structures and compounds (Drugs).
