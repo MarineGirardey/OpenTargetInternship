@@ -29,7 +29,7 @@ def main():
     plip_json_input = (
 
         # "gene_mapped_structures.json"
-        spark.read.json(args.plip_input)
+        spark.read.json(args.plip_input, multiLine=True)
 
         .select("pdbStructureId", "chains", f.explode("compoundIds").alias("pdbCompoundId"))
 
@@ -38,15 +38,15 @@ def main():
         )
 
     plip_json_input_v2 = (plip_json_input
-                        
+
                         .withColumn("chainId", plip_json_input["chains.chainId"])
-                        
+
                         .withColumn("geneId", plip_json_input["chains.geneId"])
-                        
+
                         .withColumn("uniprotId", plip_json_input["chains.uniprot"])
 
                         .drop("chains")
-                                                
+
                         )
 
     # PLIP OUTPUT
@@ -58,7 +58,7 @@ def main():
         .withColumnRenamed("pdb_structure_id", "pdbStructureId")
 
         .withColumnRenamed("compound_id", "pdbCompoundId")
-        
+
         .withColumnRenamed("prot_chain_id", "chainId")
 
         )
@@ -69,7 +69,7 @@ def main():
         plip_json_input_v2
 
         .join(plip_csv_output, on=["pdbStructureId", "chainId", "pdbCompoundId"])
-        
+
         .withColumnRenamed("interaction_type", "intType")
 
         .withColumnRenamed("prot_residue_number", "protResNb")
@@ -95,7 +95,7 @@ def main():
                 f.col('chainId'),
                 f.col('protResType'),
                 f.col('protResNb')))
-        
+
             .alias("intType, chain, resType, resNb")
             )
         )
@@ -162,9 +162,9 @@ def fetch_gapi_ensembl_mapping(row):
 
     except KeyError:
         e_mapping_file = ''
-    
+
     info = filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, residue_info)
-    
+
     return info
 
 def filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, residue_info):
@@ -205,21 +205,21 @@ def filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, residue_info):
 
         # Join residues with the mapping dataframe
         res_info_df
-        .join(e_mapping_df, 
-              (res_info_df.protResNb >= e_mapping_df.start_aut_resNb) & 
-              (res_info_df.protResNb <= e_mapping_df.end_aut_resNb) & 
+        .join(e_mapping_df,
+              (res_info_df.protResNb >= e_mapping_df.start_aut_resNb) &
+              (res_info_df.protResNb <= e_mapping_df.end_aut_resNb) &
               (res_info_df.chainId == e_mapping_df.chain_id)
               , "inner")
 
         .drop("chain_id")
 
         # Compute genomic positions of residues
-        .withColumn("posRes1", 
+        .withColumn("posRes1",
                         (((f.col("protResNb") - f.col("start_aut_resNb")) * 3) + f.col("genome_start")))
-        .withColumn("posRes2", 
+        .withColumn("posRes2",
                     (((f.col("protResNb") - f.col("start_aut_resNb")) * 3) + f.col("genome_start")) + 1)
 
-        .withColumn("posRes3", 
+        .withColumn("posRes3",
                     (((f.col("protResNb") - f.col("start_aut_resNb")) * 3) + f.col("genome_start")) + 2)
 
         # Remove entire row if residu position is already in the df
@@ -276,7 +276,7 @@ if __name__ == '__main__':
                         metavar='path_output_folder',
                         type=str,
                         required=True)
-    
+
     parser.add_argument('-t',
                         '--test_set',
                         help='Add this argument to run the script on a small set (one structure)',
