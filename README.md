@@ -32,6 +32,7 @@ sudo apt update
 # https://github.com/openbabel/openbabel/issues/2408
 sudo apt install -y \
   openbabel \
+  openjdk-11-jre-headless \
   python3-openbabel \
   python3-pip \
   python3-testresources \
@@ -46,6 +47,7 @@ pip install --quiet --upgrade pip setuptools
 # https://stackoverflow.com/questions/39403002/manually-set-package-as-installed-in-python-pip
 touch venv/lib/python3.8/site-packages/openbabel-3.0.0-py3.8.egg-info
 pip install --quiet --upgrade \
+  findspark \
   dask \
   distributed \
   matplotlib \
@@ -72,4 +74,9 @@ time python script_plip_interaction_mapping.py \
   --output_file output.csv \
   --log_file log.txt \
   --pdb_folder pdb
+time python residue_genomic_position_script.py \
+  --plip_input structure_for_plip_human_structures.csv \
+  --plip_output output.csv \
+  --output_folder genomic_position_output \
+  --log_file genomic_position_log.txt
 ```
