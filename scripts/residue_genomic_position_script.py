@@ -4,7 +4,7 @@ import pandas as pd
 import findspark
 findspark.init()
 import pyspark # Call this only after findspark.init()
-from pyspark.context import SparkContext
+from pyspark.sql import SparkSession
 
 import requests
 from json import JSONDecodeError
@@ -13,8 +13,7 @@ import argparse
 from pandarallel import pandarallel
 import psutil
 
-sc = SparkContext.getOrCreate()
-spark = SparkSession(sc)
+spark = SparkSession.builder.master('local[*]').getOrCreate()
 
 
 def main():
