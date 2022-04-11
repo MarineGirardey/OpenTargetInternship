@@ -151,21 +151,23 @@ def fetch_gapi_ensembl_mapping(row):
         response = requests.get(url, headers=headers)
 
         if response.headers['Content-Type'] != 'application/json':
-            e_mapping_file = ''
+            e_mapping_file = None
 
         else:
             e_mapping_file = response.json()
 
     except JSONDecodeError:
         if len(response.json()) == 0:
-            e_mapping_file = ''
+            e_mapping_file = None
 
     except KeyError:
-        e_mapping_file = ''
+        e_mapping_file = None
 
-    info = filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, residue_info)
+    if e_mapping_file:
+        return filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, residue_info)
+    else:
+        return None
 
-    return info
 
 def filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, residue_info):
     """This function compute genomic positions of each residues of a structure
