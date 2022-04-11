@@ -75,7 +75,7 @@ time python script_plip_interaction_mapping.py \
   --log_file log.txt \
   --pdb_folder pdb
 time python residue_genomic_position_script.py \
-  --plip_input structure_for_plip_human_structures.csv \
+  --plip_input gene_mapped_structures.json \
   --plip_output output.csv \
   --output_folder genomic_position_output \
   --log_file genomic_position_log.txt

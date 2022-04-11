@@ -29,7 +29,7 @@ def main():
     plip_json_input = (
 
         # "gene_mapped_structures.json"
-        spark.read.json(args.plip_input, multiLine=True)
+        spark.read.json(args.plip_input)
 
         .select("pdbStructureId", "chains", f.explode("compoundIds").alias("pdbCompoundId"))
 
