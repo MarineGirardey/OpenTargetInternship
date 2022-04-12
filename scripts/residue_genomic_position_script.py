@@ -13,20 +13,19 @@ import argparse
 from pandarallel import pandarallel
 import psutil
 
+
+# Global configuration for Spark and Pandarallel.
 spark = SparkSession.builder.master('local[*]').getOrCreate()
+pandarallel.initialize(
+    nb_workers=psutil.cpu_count(),
+    progress_bar=True,
+)
 
 
 def main():
 
-    # # Progress bar removed because : OverflowError: int too big to convert
-    # pandarallel.initialize(
-    #     nb_workers=psutil.cpu_count(),
-    #     progress_bar=True,
-    # )
-
     # PLIP INPUT (contain wanted data)
     plip_json_input = (
-
         # "gene_mapped_structures.json"
         spark.read.json(args.plip_input)
 
@@ -106,11 +105,6 @@ def main():
             plip_output_agg
             .filter(plip_output_agg.pdbStructId.rlike('1dqa'))
         )
-
-    # pandarallel.initialize(
-    #     nb_workers=psutil.cpu_count(),
-    #     progress_bar=True,
-    # )
 
     # Pandas Apply
     plip_output_agg_pd = plip_output_agg.toPandas()
