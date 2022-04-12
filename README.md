@@ -47,7 +47,6 @@ pip install --quiet --upgrade pip setuptools
 # https://stackoverflow.com/questions/39403002/manually-set-package-as-installed-in-python-pip
 touch venv/lib/python3.8/site-packages/openbabel-3.0.0-py3.8.egg-info
 pip install --quiet --upgrade \
-  findspark \
   dask \
   distributed \
   matplotlib \

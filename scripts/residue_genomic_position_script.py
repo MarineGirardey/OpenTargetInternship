@@ -1,17 +1,12 @@
-import pyspark.sql.functions as f
-from pyspark.sql import SparkSession
-import pandas as pd
-import findspark
-findspark.init()
-import pyspark # Call this only after findspark.init()
-from pyspark.sql import SparkSession
-
-import requests
+import argparse
 from json import JSONDecodeError
 import logging
-import argparse
-from pandarallel import pandarallel
 import psutil
+import requests
+
+from pandarallel import pandarallel
+import pyspark.sql.functions as f
+from pyspark.sql import SparkSession
 
 
 # Global configuration for Spark and Pandarallel.
