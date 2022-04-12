@@ -63,7 +63,7 @@ pip install --quiet --upgrade \
 ## Commands to reconnect to the machine and/or reactivate the environment
 * Reconnect: `gcloud compute ssh --zone ${INSTANCE_ZONE} ${INSTANCE_NAME}`
 * Restore previously created screen session: `screen -d -r`
-* Reactivate the environment: `cd ~/OpenTargetsInternship && source venv/bin/activate`
+* Reactivate the environment: `cd ~/OpenTargetInternship && source venv/bin/activate`
 
 ## Run the analysis
 ```bash
