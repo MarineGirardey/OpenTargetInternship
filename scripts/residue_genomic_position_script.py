@@ -104,9 +104,7 @@ def main():
 
         plip_output_agg = (
             plip_output_agg
-            .select("geneId", "pdbStructId", "intType, chain, resType, resNb")
             .filter(plip_output_agg.pdbStructId.rlike('1dqa'))
-
         )
 
     # pandarallel.initialize(
