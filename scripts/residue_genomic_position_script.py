@@ -103,7 +103,7 @@ def main():
 
     # Pandas Apply
     plip_output_agg_pd = plip_output_agg.toPandas()
-    plip_output_agg_pd['res_infos'] = plip_output_agg_pd.apply(
+    plip_output_agg_pd['res_infos'] = plip_output_agg_pd.parallel_apply(
         fetch_gapi_ensembl_mapping, axis=1
     )
 
