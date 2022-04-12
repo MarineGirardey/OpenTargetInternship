@@ -109,10 +109,10 @@ def main():
 
         )
 
-    pandarallel.initialize(
-        nb_workers=psutil.cpu_count(),
-        progress_bar=True,
-    )
+    # pandarallel.initialize(
+    #     nb_workers=psutil.cpu_count(),
+    #     progress_bar=True,
+    # )
 
     # Pandas Apply
     plip_output_agg_pd = plip_output_agg.toPandas()
