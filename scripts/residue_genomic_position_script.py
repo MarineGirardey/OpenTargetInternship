@@ -22,7 +22,7 @@ def main():
     # # Progress bar removed because : OverflowError: int too big to convert
     # pandarallel.initialize(
     #     nb_workers=psutil.cpu_count(),
-    #     progress_bar=False,
+    #     progress_bar=True,
     # )
 
     # PLIP INPUT (contain wanted data)
@@ -110,9 +110,14 @@ def main():
 
         )
 
+    pandarallel.initialize(
+        nb_workers=psutil.cpu_count(),
+        progress_bar=True,
+    )
+
     # Pandas Apply
     plip_output_agg_pd = plip_output_agg.toPandas()
-    plip_output_agg_pd['res_infos'] = plip_output_agg_pd.apply(
+    plip_output_agg_pd['res_infos'] = plip_output_agg_pd.parallel_apply(
         fetch_gapi_ensembl_mapping, axis=1
     )
 
@@ -136,8 +141,8 @@ def fetch_gapi_ensembl_mapping(row):
     """
 
     gene_id = row[0]
-    pdb_struct_id = row[1]
-    residue_info = row[2]
+    pdb_struct_id = row[2]
+    residue_info = row[4]
 
     url = f'https://www.ebi.ac.uk/pdbe/graph-api/mappings/ensembl/{pdb_struct_id}'
     headers={'Content-Type': 'application/json'}
@@ -173,6 +178,8 @@ def filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, residue_info):
     Returns:
         all_residu__info_list : List with genomic positions and all info for each residues
     """
+
+    logging.info(pdb_struct_id)
 
     # Ensembl mapping file
     e_mapping_df = (
@@ -268,7 +275,7 @@ if __name__ == '__main__':
                         default=None,
                         metavar='path_output_folder',
                         type=str,
-                        required=False)
+                        required=True)
     
     parser.add_argument('-t',
                         '--test_set',
