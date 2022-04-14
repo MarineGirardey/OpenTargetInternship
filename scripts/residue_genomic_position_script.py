@@ -6,7 +6,7 @@ findspark.init()
 import pyspark # Call this only after findspark.init()
 from pyspark.context import SparkContext
 
-import requests
+import requests_cache
 from json import JSONDecodeError
 import logging
 import argparse
@@ -19,11 +19,9 @@ spark = SparkSession(sc)
 
 def main():
 
-    # # Progress bar removed because : OverflowError: int too big to convert
-    # pandarallel.initialize(
-    #     nb_workers=psutil.cpu_count(),
-    #     progress_bar=True,
-    # )
+    global session
+
+    session = requests_cache.CachedSession('demo_cache')
 
     # PLIP INPUT (contain wanted data)
     plip_json_input = (
@@ -78,10 +76,28 @@ def main():
 
     )
 
+    # Target df
+    target_df = (
+
+        spark.read
+
+        .parquet("../targets")
+
+        .select("id", "genomicLocation")
+
+        .withColumn("chromosome", f.col("genomicLocation.chromosome"))
+        
+        .withColumnRenamed("id", "geneId")
+
+        .drop("genomicLocation")
+    )
+
     # Aggregate
-    plip_output_agg = (
+    plip_output_agg_chr = (
 
         plip_output_target_id
+
+        .join(target_df, on='geneId')
 
         .groupby([f.col('geneId'),
                 f.col('uniprotId'),
@@ -91,24 +107,32 @@ def main():
         .agg(f.collect_set(f.col("pdbCompoundId")).alias("pdbCompId"),
 
             f.collect_set(f.struct(
+                f.col('chromosome'),
                 f.col('intType'),
                 f.col('chainId'),
                 f.col('protResType'),
                 f.col('protResNb')))
         
-            .alias("intType, chain, resType, resNb")
+            .alias("chr, intType, chain, resType, resNb")
             )
         )
+
+    logging.info(f"total structure : {plip_output_agg_chr.count()}")
 
     # Test set
     if args.test_set:
 
-        plip_output_agg = (
-            plip_output_agg
-            .select("geneId", "pdbStructId", "intType, chain, resType, resNb")
-            .filter(plip_output_agg.pdbStructId.rlike('1dqa'))
-
+        # plip_output_agg_chr = plip_output_agg_chr.sample(0.001, 3)
+    
+        plip_output_agg_chr = (
+            plip_output_agg_chr
+            .select("*")
+            .filter(plip_output_agg_chr.pdbStructId.rlike('6yov'))
         )
+
+
+    logging.info(plip_output_agg_chr.count())
+    logging.info(plip_output_agg_chr.show())
 
     pandarallel.initialize(
         nb_workers=psutil.cpu_count(),
@@ -116,19 +140,21 @@ def main():
     )
 
     # Pandas Apply
-    plip_output_agg_pd = plip_output_agg.toPandas()
+    plip_output_agg_pd = plip_output_agg_chr.toPandas()
     plip_output_agg_pd['res_infos'] = plip_output_agg_pd.parallel_apply(
         fetch_gapi_ensembl_mapping, axis=1
     )
 
+    plip_output_agg_final_pd = plip_output_agg_pd.mask(plip_output_agg_pd.eq('None')).dropna()
+
     # Final DF
-    final_df = (
-        spark.createDataFrame(plip_output_agg_pd)
+    genomic_pos_output_df = (
+        spark.createDataFrame(plip_output_agg_final_pd)
         .drop("intType, chain, resType, resNb")
         .select("geneId", "pdbStructId", f.explode("res_infos").alias("res_infos"))
     )
 
-    final_df.toPandas().to_csv(args.output_folder + "/residue_genomic_position.csv", index=False, header=True)
+    genomic_pos_output_df.toPandas().to_csv(args.output_folder + "/residue_genomic_position.csv", index=False, header=True)
 
 
 def fetch_gapi_ensembl_mapping(row):
@@ -148,7 +174,7 @@ def fetch_gapi_ensembl_mapping(row):
     headers={'Content-Type': 'application/json'}
 
     try:
-        response = requests.get(url, headers=headers)
+        response = session.get(url, headers=headers)
 
         if response.headers['Content-Type'] != 'application/json':
             e_mapping_file = ''
@@ -159,11 +185,17 @@ def fetch_gapi_ensembl_mapping(row):
     except JSONDecodeError:
         if len(response.json()) == 0:
             e_mapping_file = ''
+    
+    try:
+        e_mapping_file[pdb_struct_id]['Ensembl'][gene_id]['mappings']
 
     except KeyError:
         e_mapping_file = ''
     
-    info = filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, residue_info)
+    if e_mapping_file:
+        info = filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, residue_info)
+    else:
+        info = "None"
     
     return info
 
