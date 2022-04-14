@@ -2,8 +2,8 @@ import argparse
 from json import JSONDecodeError
 import logging
 import psutil
-import requests
 
+import requests
 from pandarallel import pandarallel
 import pyspark.sql.functions as f
 from pyspark.sql import SparkSession
