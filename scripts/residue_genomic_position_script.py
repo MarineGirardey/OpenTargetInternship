@@ -18,7 +18,6 @@ pandarallel.initialize(
     progress_bar=True,
 )
 
-
 def main():
 
     # PLIP INPUT (contain wanted data)
@@ -107,8 +106,7 @@ def main():
                 f.col('intType'),
                 f.col('chainId'),
                 f.col('protResType'),
-                f.col('protResNb')))
-        
+                f.col('protResNb')))        
             .alias("chr, intType, chain, resType, resNb")
             )
         )
@@ -165,6 +163,7 @@ def fetch_gapi_ensembl_mapping(row):
             return filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, residue_info)
 
     except KeyError:
+
         return None
 
 
