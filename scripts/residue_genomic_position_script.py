@@ -3,6 +3,7 @@ from json import JSONDecodeError
 import logging
 import psutil
 
+import pandas as pd
 import requests
 from pandarallel import pandarallel
 import pyspark.sql.functions as f
@@ -11,11 +12,11 @@ from pyspark.sql import SparkSession
 
 # Global configuration for Spark and Pandarallel.
 spark = SparkSession.builder.master('local[*]').getOrCreate()
+
 pandarallel.initialize(
     nb_workers=psutil.cpu_count(),
     progress_bar=True,
 )
-
 
 def main():
 
@@ -71,10 +72,27 @@ def main():
 
     )
 
-    # Aggregate
+    # Target df
+    target_df = (
+
+        spark.read
+
+        .parquet("../targets")
+
+        .select("id", "genomicLocation")
+
+        .withColumn("chromosome", f.col("genomicLocation.chromosome"))
+        
+        .withColumnRenamed("id", "geneId")
+
+        .drop("genomicLocation")
+    )
+
     plip_output_agg = (
 
         plip_output_target_id
+        
+        .join(target_df, on='geneId')
 
         .groupby([f.col('geneId'),
                 f.col('uniprotId'),
@@ -84,37 +102,37 @@ def main():
         .agg(f.collect_set(f.col("pdbCompoundId")).alias("pdbCompId"),
 
             f.collect_set(f.struct(
+                f.col('chromosome'),
                 f.col('intType'),
                 f.col('chainId'),
                 f.col('protResType'),
-                f.col('protResNb')))
-
-            .alias("intType, chain, resType, resNb")
+                f.col('protResNb')))        
+            .alias("chr, intType, chain, resType, resNb")
             )
         )
 
     # Test set
     if args.test_set:
 
-        plip_output_agg = (
-            plip_output_agg
-            .filter(plip_output_agg.pdbStructId.rlike('1dqa'))
-        )
+        plip_output_agg = plip_output_agg.sample(0.1, 3)
+
+        # plip_output_agg = (
+        #     plip_output_agg
+        #     .filter(plip_output_agg.pdbStructId.rlike('1dqa'))
+        # )
 
     # Pandas Apply
-    plip_output_agg_pd = plip_output_agg.toPandas()
-    plip_output_agg_pd['res_infos'] = plip_output_agg_pd.parallel_apply(
+    genomic_pos_pd = plip_output_agg.toPandas()
+    genomic_pos_pd["resNb, resType, chain, intType, chr, genPos"] = genomic_pos_pd.parallel_apply(
         fetch_gapi_ensembl_mapping, axis=1
-    )
+        )
 
     # Final DF
-    final_df = (
-        spark.createDataFrame(plip_output_agg_pd)
-        .drop("intType, chain, resType, resNb")
-        .select("geneId", "pdbStructId", f.explode("res_infos").alias("res_infos"))
-    )
+    genomic_pos_rm_null_pd = genomic_pos_pd[["geneId", "pdbStructId", "resNb, resType, chain, intType, chr, genPos"]].dropna()
 
-    final_df.toPandas().to_csv(args.output_folder + "/residue_genomic_position.csv", index=False, header=True)
+    final_df = genomic_pos_rm_null_pd.explode('resNb, resType, chain, intType, chr, genPos')
+
+    final_df.to_csv(args.output_folder + "/residue_genomic_position.csv", index=False, header=True)
 
 
 def fetch_gapi_ensembl_mapping(row):
@@ -128,109 +146,60 @@ def fetch_gapi_ensembl_mapping(row):
 
     gene_id = row[0]
     pdb_struct_id = row[2]
-    residue_info = row[4]
+    residue_info = pd.DataFrame(row[4]).values.tolist()
+
 
     url = f'https://www.ebi.ac.uk/pdbe/graph-api/mappings/ensembl/{pdb_struct_id}'
     headers={'Content-Type': 'application/json'}
 
-    try:
-        response = requests.get(url, headers=headers)
+    response = requests.get(url, headers=headers)
 
+    try:
         if response.headers['Content-Type'] != 'application/json':
-            e_mapping_file = None
+            return None
 
         else:
             e_mapping_file = response.json()
-
-    except JSONDecodeError:
-        if len(response.json()) == 0:
-            e_mapping_file = None
+            return filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, residue_info)
 
     except KeyError:
-        e_mapping_file = None
 
-    if e_mapping_file:
-        return filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, residue_info)
-    else:
         return None
 
 
 def filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, residue_info):
-    """This function compute genomic positions of each residues of a structure
 
-    Args:
-        e_mapping_file : to extract genomic position of a range a residues
-        pdb_struct_id : the concerned structure
-        gene_id : gene ensembl id
-        residue_info : all residues to extract genomic position and info about them
-    Returns:
-        all_residu__info_list : List with genomic positions and all info for each residues
-    """
+    output_list = []
 
-    logging.info(pdb_struct_id)
+    e_mapping_dict = e_mapping_file[pdb_struct_id]['Ensembl'][gene_id]['mappings']
 
-    # Ensembl mapping file
-    e_mapping_df = (
+    for res in residue_info:
 
-        spark
+        chromosome = res[0]
+        inter_type = res[1]
+        chain = res[2]
+        res_type = res[3]
+        res_nb = int(res[4])
 
-        .createDataFrame(e_mapping_file[pdb_struct_id]['Ensembl'][gene_id]['mappings'])
+        for res_range in e_mapping_dict:
 
-        .select("chain_id", "genome_end", "genome_start", "end", "start")
+            start_res = res_range["start"]["author_residue_number"]
+            end_res = res_range["end"]["author_residue_number"]
 
-        .withColumn("start_aut_resNb", f.col("start.author_residue_number"))
-        .withColumn("end_aut_resNb", f.col("end.author_residue_number"))
+            if start_res <= res_nb and end_res >= res_nb:
 
-        .drop("chains")
-        .drop("end")
-        .drop("start")
+                genome_start = res_range["genome_start"]
 
-    )
+                res_pos_1 = ((res_nb - start_res) * 3) + genome_start
+                res_pos_2 = res_pos_1 + 1
+                res_pos_3 = res_pos_1 + 2
 
-    # Residues to obtain genomic position from
-    res_info_df = spark.createDataFrame(residue_info)
-    res_genomic_pos_df = (
+                new_elem = [res_nb, res_type, chain, inter_type, chromosome, [res_pos_1, res_pos_2, res_pos_3]]
 
-        # Join residues with the mapping dataframe
-        res_info_df
-        .join(e_mapping_df,
-              (res_info_df.protResNb >= e_mapping_df.start_aut_resNb) &
-              (res_info_df.protResNb <= e_mapping_df.end_aut_resNb) &
-              (res_info_df.chainId == e_mapping_df.chain_id)
-              , "inner")
+                if new_elem not in output_list:
+                    output_list.append([res_nb, res_type, chain, inter_type, chromosome, [res_pos_1, res_pos_2, res_pos_3]])
 
-        .drop("chain_id")
-
-        # Compute genomic positions of residues
-        .withColumn("posRes1",
-                        (((f.col("protResNb") - f.col("start_aut_resNb")) * 3) + f.col("genome_start")))
-        .withColumn("posRes2",
-                    (((f.col("protResNb") - f.col("start_aut_resNb")) * 3) + f.col("genome_start")) + 1)
-
-        .withColumn("posRes3",
-                    (((f.col("protResNb") - f.col("start_aut_resNb")) * 3) + f.col("genome_start")) + 2)
-
-        # Remove entire row if residu position is already in the df
-        .dropDuplicates(["posRes1", "chainId"])
-
-        .groupBy("protResNb", "start_aut_resNb", "end_aut_resNb", "genome_start", "genome_end")
-
-        .agg(f.collect_set(f.struct(f.col("protResNb"),
-                                    f.col("intType"),
-                                    f.col("chainId"),
-                                    f.col("protResType"),
-                                    f.col("posRes1"),
-                                    f.col("posRes2"),
-                                    f.col("posRes3")
-                                    )
-                           ).alias("ResInfos")
-             )
-    )
-
-    # Store as a list for the apply (create a new column to the initial DF)
-    all_residu__info_list = res_genomic_pos_df.select('ResInfos').collect()
-
-    return all_residu__info_list
+    return output_list
 
 
 if __name__ == '__main__':
