@@ -32,6 +32,7 @@ sudo apt update
 # https://github.com/openbabel/openbabel/issues/2408
 sudo apt install -y \
   openbabel \
+  openjdk-11-jre-headless \
   python3-openbabel \
   python3-pip \
   python3-testresources \
@@ -61,7 +62,7 @@ pip install --quiet --upgrade \
 ## Commands to reconnect to the machine and/or reactivate the environment
 * Reconnect: `gcloud compute ssh --zone ${INSTANCE_ZONE} ${INSTANCE_NAME}`
 * Restore previously created screen session: `screen -d -r`
-* Reactivate the environment: `cd ~/OpenTargetsInternship && source venv/bin/activate`
+* Reactivate the environment: `cd ~/OpenTargetInternship && source venv/bin/activate`
 
 ## Run the analysis
 ```bash
@@ -72,4 +73,10 @@ time python script_plip_interaction_mapping.py \
   --output_file output.csv \
   --log_file log.txt \
   --pdb_folder pdb
+mkdir -p residue_gen_pos_output
+time python residue_genomic_position_script.py \
+  --plip_input gene_mapped_structures.json \
+  --plip_output output.csv \
+  --output_folder residue_gen_pos_output \
+  --log_file genomic_position_log.txt
 ```
