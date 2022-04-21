@@ -101,22 +101,24 @@ def main():
                 f.col("pdbStructureId").alias("pdbStructId")
                 ])
 
-        .agg(f.collect_set(f.col("pdbCompoundId")).alias("pdbCompId"),
-
-            f.collect_set(f.struct(
+        .agg(f.collect_set(f.struct(
+                f.col('pdbCompoundId'),
                 f.col('chromosome'),
                 f.col('intType'),
                 f.col('chainId'),
                 f.col('protResType'),
                 f.col('protResNb')))        
-            .alias("chr, intType, chain, resType, resNb")
+            .alias("chr, intType, chain, resType, resNb"),
+
+            f.collect_set(f.col("pdbCompoundId")).alias("pdbCompId")
             )
         )
+    plip_output_agg.show(10, False, True)
 
     # Test set
     if args.test_set:
 
-        plip_output_agg = plip_output_agg.sample(0.001, 3)
+        plip_output_agg = plip_output_agg.sample(0.1, 3)
 
     # # Pandas Apply
     genomic_pos_pd = plip_output_agg.toPandas()
@@ -140,10 +142,9 @@ def fetch_gapi_ensembl_mapping(row):
     Returns:
         a column for each structure with genomic positions and other infos about residues
     """
-
     gene_id = row[0]
     pdb_struct_id = row[2]
-    residue_info = pd.DataFrame(row[4]).values.tolist()
+    residue_info = pd.DataFrame(row[3]).values.tolist()
 
 
     url = f'https://www.ebi.ac.uk/pdbe/graph-api/mappings/ensembl/{pdb_struct_id}'
@@ -171,12 +172,13 @@ def filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, residue_info):
     e_mapping_dict = e_mapping_file[pdb_struct_id]['Ensembl'][gene_id]['mappings']
 
     for res in residue_info:
-
-        chromosome = res[0]
-        inter_type = res[1]
-        chain = res[2]
-        res_type = res[3]
-        res_nb = int(res[4])
+    
+        compound = res[0]
+        chromosome = res[1]
+        inter_type = res[2]
+        chain = res[3]
+        res_type = res[4]
+        res_nb = int(res[5])
 
         for res_range in e_mapping_dict:
 
@@ -192,6 +194,7 @@ def filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, residue_info):
                 res_pos_3 = res_pos_1 + 2
 
                 new_elem = {
+                    "compound": compound,
                     "res_nb": res_nb, 
                     "res_type": res_type, 
                     "chain": chain, 
