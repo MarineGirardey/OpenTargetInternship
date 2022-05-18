@@ -11,6 +11,9 @@ import pyspark.sql.functions as f
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructField, StructType, IntegerType, StringType
 
+from Bio.Data.CodonTable import CodonTable
+from Bio.Seq import Seq
+from Bio.SeqUtils import IUPACData
 
 # Global configuration for Spark and Pandarallel.
 spark = SparkSession.builder.master('local[*]').getOrCreate()
@@ -89,6 +92,7 @@ def main():
 
         .drop("genomicLocation")
     )
+    target_df.show()
 
     plip_output_agg = (
 
@@ -113,16 +117,18 @@ def main():
             f.collect_set(f.col("pdbCompoundId")).alias("pdbCompId")
             )
         )
-    plip_output_agg.show(10, False, True)
 
     # Test set
     if args.test_set:
 
-        plip_output_agg = plip_output_agg.sample(0.1, 3)
+        plip_output_agg = plip_output_agg.sample(0.001, 3)
+        # print(plip_output_agg.count())
+
+    plip_output_agg.show()
 
     # # Pandas Apply
     genomic_pos_pd = plip_output_agg.toPandas()
-    genomic_pos_pd["resInfos"] = genomic_pos_pd.parallel_apply(
+    genomic_pos_pd["resInfos"] = genomic_pos_pd.apply(
         fetch_gapi_ensembl_mapping, axis=1
         )
 
@@ -131,7 +137,9 @@ def main():
 
     final_df = genomic_pos_rm_null_pd.explode('resInfos')
 
-    final_df.to_json(args.output_folder + "/residue_genomic_position.json", orient="records")
+    # print(len(final_df))
+
+    final_df.to_json(args.output_folder + "/residue_genomic_position_2.json", orient="records")
 
 
 def fetch_gapi_ensembl_mapping(row):
@@ -143,6 +151,7 @@ def fetch_gapi_ensembl_mapping(row):
         a column for each structure with genomic positions and other infos about residues
     """
     gene_id = row[0]
+    uniprot_id = row[1]
     pdb_struct_id = row[2]
     residue_info = pd.DataFrame(row[3]).values.tolist()
 
@@ -158,14 +167,14 @@ def fetch_gapi_ensembl_mapping(row):
 
         else:
             e_mapping_file = response.json()
-            return filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, residue_info)
+            return filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, uniprot_id, residue_info)
 
     except KeyError:
 
         return None
 
 
-def filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, residue_info):
+def filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, uniprot_id, residue_info):
 
     output_list = []
 
@@ -182,33 +191,55 @@ def filter_dict_file(e_mapping_file, pdb_struct_id, gene_id, residue_info):
 
         for res_range in e_mapping_dict:
 
+            accession = res_range["accession"]
             start_res = res_range["start"]["author_residue_number"]
             end_res = res_range["end"]["author_residue_number"]
 
             if start_res <= res_nb and end_res >= res_nb:
+                if accession == uniprot_id:
+                    if res_range['chain_id'] == chain:
+                        
+                        genome_start = res_range["genome_start"]
+                        genome_end = res_range["genome_end"]
 
-                genome_start = res_range["genome_start"]
+                        print(res_range)
+                        print(chromosome)
+                        print(pdb_struct_id)
+                        print(res_type)
+                        print(start_res, res_nb, end_res)
+                        print(chain, res_range['chain_id'])
+                        print(genome_start)
+                        print(genome_end)
+                        print(((res_nb - start_res) * 3) + genome_start)
 
-                res_pos_1 = ((res_nb - start_res) * 3) + genome_start
-                res_pos_2 = res_pos_1 + 1
-                res_pos_3 = res_pos_1 + 2
+                        url = f'https://rest.ensembl.org/sequence/region/human/{chromosome}:{genome_start}..{genome_end -1}:1?content-type=text/plain'
+                        response = requests.get(url)
+                        codon = response.text
+                        my_rna = Seq(codon)
+                        print(my_rna)
+                        amino_acid_1 = str(my_rna.translate())
+                        print(amino_acid_1)
 
-                new_elem = {
-                    "compound": compound,
-                    "res_nb": res_nb, 
-                    "res_type": res_type, 
-                    "chain": chain, 
-                    "inter_type": inter_type, 
-                    "chromosome": chromosome, 
-                    "genLocation": {
-                        "res_pos_1": res_pos_1, 
-                        "res_pos_2": res_pos_2, 
-                        "res_pos_3": res_pos_3
-                        }
-                        }
+                        res_pos_1 = ((res_nb - start_res) * 3) + genome_start
+                        res_pos_2 = res_pos_1 + 1
+                        res_pos_3 = res_pos_1 + 2
 
-                if new_elem not in output_list:
-                    output_list.append(new_elem)
+                        new_elem = {
+                            "compound": compound,
+                            "res_nb": res_nb, 
+                            "res_type": res_type, 
+                            "chain": chain, 
+                            "inter_type": inter_type, 
+                            "chromosome": chromosome, 
+                            "genLocation": {
+                                "res_pos_1": res_pos_1, 
+                                "res_pos_2": res_pos_2, 
+                                "res_pos_3": res_pos_3
+                                }
+                                }
+
+                        if new_elem not in output_list:
+                            output_list.append(new_elem)
 
     return output_list
 
@@ -223,9 +254,9 @@ if __name__ == '__main__':
 
     parser.add_argument('-pi',
                         '--plip_input',
-                        help='Path to the csv file with structures and drugs to compute PLIP interactions on.',
+                        help='Path to the json file with structures and drugs to compute PLIP interactions on.',
                         default=None,
-                        metavar='csv_structure_drug_file_path',
+                        metavar='json_structure_drug_file_path',
                         type=str,
                         required=True)
 

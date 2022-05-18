@@ -92,19 +92,15 @@ class GetPDB:
         try:
             # Readind data from the given location:
             with open(f'{self.data_folder}/pdb{pdb_structure_id}.ent', 'rt') as f:
-                logging.info(f'try.')
                 data = f.read()
-                logging.info(f'try ok.')
 
         except FileNotFoundError:
-            logging.info(f'except.')
             # Fetch data from the web
             data = self.fetch_pdb(pdb_structure_id)
 
             # Save file
             with open(f'{self.data_folder}/pdb{pdb_structure_id}.ent', 'wt') as f:
                 f.write(data)
-                logging.info(f'except ok.')
 
         logging.info(f'File obtained.')
 
