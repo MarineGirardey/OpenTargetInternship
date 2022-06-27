@@ -1,10 +1,14 @@
-# OpenTargetInternship
-6 months internship at the EMBL-EBI in the data team of the OpenTarget platform
+# Enrichment of the Open Targets Platform with structural annotations
+
+6 months internship at the EMBL-EBI in the data team of Open Targets
+Subject: Enrich the platform with structural information about the drug-target complex to provide an interactive display 
+of the 3D complex on the platform and create a new dataset from a new structure-based new association investigation.
+For more details, read my internship report here.
 
 ## Create Google Compute Engine instance
 ```bash
 # Set parameters.
-export INSTANCE_NAME=plip-interaction
+export INSTANCE_NAME=mgirardey_project
 export INSTANCE_ZONE=europe-west1-d
 export INSTANCE_TYPE=n1-highcpu-64
 
@@ -47,7 +51,6 @@ pip install --quiet --upgrade pip setuptools
 # https://stackoverflow.com/questions/39403002/manually-set-package-as-installed-in-python-pip
 touch venv/lib/python3.8/site-packages/openbabel-3.0.0-py3.8.egg-info
 pip install --quiet --upgrade \
-  dask \
   distributed \
   matplotlib \
   numpy \
@@ -56,7 +59,6 @@ pip install --quiet --upgrade \
   plip \
   pyspark \
   requests \
-  git+https://github.com/PDBeurope/arpeggio
 ```
 
 ## Commands to reconnect to the machine and/or reactivate the environment
