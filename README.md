@@ -5,6 +5,8 @@ Subject: Enrich the platform with structural information about the drug-target c
 of the 3D complex on the platform and create a new dataset from a new structure-based new association investigation.
 For more details, read my internship report here.
 
+<img width="387" alt="ot" src="https://user-images.githubusercontent.com/77064839/176146051-e7d298d7-7863-4a12-978f-6514f6cd8eb3.png">
+
 ### How to create Google Compute Engine instance?
 ```bash
 # Set parameters.
