@@ -22,6 +22,7 @@ def main():
             'name', 'linkedTargets', 'linkedDiseases'
             )
     )
+    logging.info(f'STATISTICS -> Number in molecules : {molecule_df.count()}')
 
     # INCHIKEY MOLECULES
     inchikey_df = (
@@ -32,13 +33,15 @@ def main():
                 f.col('CCD_ID').alias('pdbCompoundId')
                 )
     )
+    logging.info(f'STATISTICS -> Number in inchikeys : {inchikey_df.count()}')
 
     # MOLECULE WITH COMPOUND ID
     molecules_inchikey_join = (
         molecule_df
         .join(inchikey_df, on='inchikey')
-        .sample(0.001, 3)
+        # .sample(0.001, 3)
     )
+    logging.info(f'STATISTICS -> Number of our molecules in inchikeys : {molecules_inchikey_join.count()}')
 
     # MOLECULE WITH PDB STRUCTURES
     molecules_w_pdb = (
@@ -47,7 +50,9 @@ def main():
                          .toPandas()
                          .assign(pdbStructureId=lambda df: df.pdbCompoundId.apply(get_structure))
                          )
+        .filter(f.size('pdbStructureId') != 0)
     )
+    logging.info(f'STATISTICS -> Number of molecules with one or more pdb structure : {molecules_w_pdb.count()}')
 
     # NON PERTINENT COMPOUNDS
     excluded_compounds = (
@@ -65,6 +70,7 @@ def main():
         molecules_w_pdb
         .join(excluded_compounds, on='pdbCompoundId', how='left_anti')
     )
+    logging.info(f'STATISTICS -> Number after removing non relevant compounds : {molecules_w_pdb_drug_filtered.count()}')
 
     # TARGET
     pdb_target_df = (
@@ -78,6 +84,7 @@ def main():
         .distinct()
         .persist()
     )
+    logging.info(f'STATISTICS -> Number of (ensembl) targets : {pdb_target_df.count()}')
 
     # COMPOUND STRUCTURE AND TARGET
     gene_mapped_structures = (
@@ -106,72 +113,48 @@ def main():
         )
         .persist()
     )
+    logging.info(f'STATISTICS -> Number of structure with compounds and targets: {gene_mapped_structures.count()}')
+
 
     # CREATE JSON OUTPUT FILE
     (
         gene_mapped_structures
-        .write.mode('overwrite').json(args.output + '/gene_mapped_structures.json')
+        .write.mode('overwrite').json(args.output + 'structure_drug_target_o.json')
     )
+
+    if args.folder:
+        molecules_inchikey_join.write.mode('overwrite').json(args.output + 'intermediary_data/molecules_inchikey_join.json')
+        molecules_w_pdb.write.mode('overwrite').json(args.output + 'intermediary_data/molecules_w_pdb.json')
+        molecules_w_pdb_drug_filtered.write.mode('overwrite').json(args.output + 'intermediary_data/molecules_w_pdb_drug_filtered.json')
 
 
 def get_structure(pdb_compound_id: str) -> list:
     """Fetching structure identifiers from PDBkb REST API
-
     Args:
         pdb_compound_id: string, a single compound identifier
     Returns:
         List of PDB structure identifiers where the compound can be found
     """
+
+    # URL of the API to obtain the structure id list
     url = f'https://www.ebi.ac.uk/pdbe/api/pdb/compound/in_pdb/{pdb_compound_id}'
     response = requests.get(url)
+
+    # Try to obtain the API return in a json format
     try:
         data = response.json()
         return data[pdb_compound_id]
 
+    # Impossible to obtain the json format because there is an error
     except JSONDecodeError:
         print(f'Failed to return structures to: {pdb_compound_id}')
         if len(response.json()) == 0:
             return []
+
+    # Key error the strucutre id is not good or not referenced
     except KeyError:
-        print(f'Empty data was returned for: {pdb_compound_id}')
+        logging.warning(f'NO DATA -> Empty data was returned for: {pdb_compound_id}')
         return []
-
-
-def create_pdb_target_gene_df(path_id_file: str, unichem_molecule_struct_df):
-    """Updating DataFrame with target identifiers from sift msd as 'chain_ensembl_struct_mol_joined.csv'
-
-    Args:
-        path_id_file: string, a path to the csv file
-        unichem_molecule_struct_df: dataframe, containing unichem molecule id, pdb compound id, pdbkb structure id
-    Returns:
-        Same DataFrame than unichem_molecule_struct_spark_df but with the target gene id column in extra
-    """
-    pdb_chain_ensembl = (
-        spark.read.csv(path_id_file, sep=',', header=True, comment='#')
-            .select(
-                f.col('PDB').alias('pdbStructureId'),
-                f.col('CHAIN').alias('chain'),
-                f.col('GENE_ID').alias('geneId')
-            )
-            .distinct()
-    )
-
-    pdb_chain_ensembl.show()
-
-    return (
-        unichem_molecule_struct_df
-
-            # Exploding the STRUCTURE_ID array into a column called PDB:
-            .select(
-                'chemblId', 'name', 'linkedTargets', 'linkedDiseases', 'pdbCompoundId',
-                f.explode(f.col('pdbStructureId')).alias('pdbStructureId')
-            )
-            # Joining chain ids by PDB identifier:
-            .join(pdb_chain_ensembl, on='pdbStructureId', how='inner')
-
-            # The dataframe is stored in memory when returning:
-            .persist()
-            )
 
 
 if __name__ == '__main__':
@@ -219,6 +202,20 @@ if __name__ == '__main__':
                         metavar='ensembl_file_path',
                         type=str,
                         required=True)
+    
+    parser.add_argument('-l',
+                        '--log_file',
+                        help='File to save the logs to.',
+                        default=None,
+                        metavar='log_file',
+                        type=str,
+                        required=True)
+
+    parser.add_argument('-f',
+                        '--folder',
+                        help='folder with intermediate data',
+                        action='store_true',
+                        required=False)
 
     args = parser.parse_args()
 
@@ -226,7 +223,9 @@ if __name__ == '__main__':
         level=logging.INFO,
         format='%(asctime)s %(levelname)s %(module)s - %(funcName)s: %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S',
-    )
+        filename=args.log_file,
+        force=True)
+
     logging.StreamHandler(sys.stderr)
 
     logging.info(program_description)
