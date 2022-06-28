@@ -1,10 +1,16 @@
-# OpenTargetInternship
-6 months internship at the EMBL-EBI in the data team of the OpenTarget platform
+# Enrichment of the Open Targets Platform with structural annotations
 
-## Create Google Compute Engine instance
+6 months internship at the EMBL-EBI in the data team of Open Targets
+Subject: Enrich the platform with structural information about the drug-target complex to provide an interactive display 
+of the 3D complex on the platform and create a new dataset from a new structure-based new association investigation.
+For more details, read my internship report here.
+
+<img width="387" alt="ot" src="https://user-images.githubusercontent.com/77064839/176146051-e7d298d7-7863-4a12-978f-6514f6cd8eb3.png">
+
+### How to create Google Compute Engine instance?
 ```bash
 # Set parameters.
-export INSTANCE_NAME=plip-interaction
+export INSTANCE_NAME=mgirardey_project
 export INSTANCE_ZONE=europe-west1-d
 export INSTANCE_TYPE=n1-highcpu-64
 
@@ -25,7 +31,7 @@ gcloud compute ssh --zone ${INSTANCE_ZONE} ${INSTANCE_NAME}
 screen
 ```
 
-## Configure environment and install dependencies (first time)
+### How to configure the environment needed?
 ```bash
 sudo apt update
 # python3-openbabel has to be installed globally because of a number of errors in the current PIP packaging
@@ -47,7 +53,6 @@ pip install --quiet --upgrade pip setuptools
 # https://stackoverflow.com/questions/39403002/manually-set-package-as-installed-in-python-pip
 touch venv/lib/python3.8/site-packages/openbabel-3.0.0-py3.8.egg-info
 pip install --quiet --upgrade \
-  dask \
   distributed \
   matplotlib \
   numpy \
@@ -56,13 +61,21 @@ pip install --quiet --upgrade \
   plip \
   pyspark \
   requests \
-  git+https://github.com/PDBeurope/arpeggio
 ```
 
-## Commands to reconnect to the machine and/or reactivate the environment
+### Commands to reconnect to the machine and/or reactivate the environment
 * Reconnect: `gcloud compute ssh --zone ${INSTANCE_ZONE} ${INSTANCE_NAME}`
 * Restore previously created screen session: `screen -d -r`
 * Reactivate the environment: `cd ~/OpenTargetInternship && source venv/bin/activate`
+
+
+### How to run the full code?
+### How to run each script independently?
+
+# PLIP
+
+
+# Get Location
 
 ## Run the analysis
 ```bash
@@ -80,3 +93,6 @@ time python residue_genomic_position_script.py \
   --output_folder residue_gen_pos_output \
   --log_file genomic_position_log.txt
 ```
+
+
+python scripts/residue_genomic_position.py -o output_file_location/output_loc.json -i output_file_plip/output_plip.json -p scripts/files_to_merge_genomic_loc/HUMAN_9606_idmapping.tsv -m scripts/files_to_merge_genomic_loc/generated_mappings.tsv -i output_file_plip/output_plip.json -l output_file_location/log.txt
