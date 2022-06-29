@@ -1,5 +1,7 @@
 # Enrichment of the Open Targets Platform with structural annotations
 
+Open source code :computer:	:white_check_mark:	- Open source data :dna: :white_check_mark:	- Full documentation :books: :white_check_mark:	
+
 Marine Girardey - marine.girardey@gmail.com
 
 <a href="https://www.linkedin.com/in/marine-girardey/">
@@ -23,7 +25,14 @@ The goal of this project is to enrich the platform with structural information a
 of the 3D complex on the platform and create a new dataset from a new structure-based new association investigation.
 For more details, read my [internship report]().
 
-### How to create Google Compute Engine instance?
+## Run the code
+
+#### Quick info
+
+Note that the code have been runned on a high CPU 64 google compute engine and take between 2 and 3 hours 
+
+#### 1. Create Google Compute Engine instance
+
 ```bash
 # Set parameters.
 export INSTANCE_NAME=mgirardey_project
@@ -47,7 +56,7 @@ gcloud compute ssh --zone ${INSTANCE_ZONE} ${INSTANCE_NAME}
 screen
 ```
 
-### How to configure the environment needed?
+#### 2. Configure the environment needed?
 ```bash
 sudo apt update
 # python3-openbabel has to be installed globally because of a number of errors in the current PIP packaging
