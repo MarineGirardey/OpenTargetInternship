@@ -91,6 +91,10 @@ pip install --quiet --upgrade \
 
 #### 3. Run the full code
 
+```bash
+chmod 755 all_scripts.sh
+./all_scripts.sh
+```
 
 #### 4. Run each part separatly
 
