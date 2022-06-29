@@ -29,7 +29,7 @@ For more details, read my [internship report]().
 
 #### Quick info
 
-Note that the code have been runned on a high CPU 64 google compute engine and take between 2 and 3 hours 
+Note that the code have been runned on a n1-highcpu-64 google compute engine and take between 2 and 3 hours to run.
 
 #### 1. Create Google Compute Engine instance
 
@@ -56,7 +56,8 @@ gcloud compute ssh --zone ${INSTANCE_ZONE} ${INSTANCE_NAME}
 screen
 ```
 
-#### 2. Configure the environment needed?
+#### 2. Configure the environment
+
 ```bash
 sudo apt update
 # python3-openbabel has to be installed globally because of a number of errors in the current PIP packaging
@@ -88,17 +89,49 @@ pip install --quiet --upgrade \
   requests \
 ```
 
-### Commands to reconnect to the machine and/or reactivate the environment
-* Reconnect: `gcloud compute ssh --zone ${INSTANCE_ZONE} ${INSTANCE_NAME}`
-* Restore previously created screen session: `screen -d -r`
-* Reactivate the environment: `cd ~/OpenTargetInternship && source venv/bin/activate`
+#### 3. Run the full code
 
 
-### How to run the full code?
-### How to run each script independently?
+#### 4. Run each part separatly
 
-# PLIP
+**Script 1: Get drug-target-structure infos**
+```bash
+```
 
+**Script 2: Get interacting residues with PLIP**
+```bash
+  python scripts/plip_interaction_mapping.py
+  -i input_folder_plip/structure_drug_target_o.json/
+  -o output_file_plip/output_plip.json
+  -l output_file_plip/log.txt
+  -f structure_files/ 
+  2> errors.log
+```
+
+**Script 3: Get genomic location**
+```bash
+cd scripts
+time python scripts/residue_genomic_position.py 
+  -o output_file_location/output_loc.json
+  -i output_file_plip/output_plip.json 
+  -p scripts/files_to_merge_genomic_loc/HUMAN_9606_idmapping.tsv
+  -m scripts/files_to_merge_genomic_loc/generated_mappings.tsv
+  -i output_file_plip/output_plip.json
+  -l output_file_location/log.txt
+```
+
+**Script 4: Get new drug-disease associations**
+```bash
+  python scripts/drug_disease_new_evidence.py
+  -gl output_file_location/output_loc.json
+  -e ../evidence/
+  -m ../molecule
+  -i ../inchikey/
+  -d ../diseases/
+  -t ../targets/
+  -o output_evidence/output_evidence_filtered.csv
+  2> errors.log
+```
 
 # Get Location
 
@@ -119,5 +152,16 @@ time python residue_genomic_position_script.py \
   --log_file genomic_position_log.txt
 ```
 
+#### Quick help
 
-python scripts/residue_genomic_position.py -o output_file_location/output_loc.json -i output_file_plip/output_plip.json -p scripts/files_to_merge_genomic_loc/HUMAN_9606_idmapping.tsv -m scripts/files_to_merge_genomic_loc/generated_mappings.tsv -i output_file_plip/output_plip.json -l output_file_location/log.txt
+**- Commands to reconnect to the machine**
+
+`gcloud compute ssh --zone ${INSTANCE_ZONE} ${INSTANCE_NAME}`
+
+**- Command to reactivate a screen session**
+
+`screen -d -r`
+
+**- Command to reactivate the environment**
+
+`cd ~/OpenTargetInternship && source venv/bin/activate`
