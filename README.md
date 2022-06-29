@@ -96,6 +96,14 @@ pip install --quiet --upgrade \
 
 **Script 1: Get drug-target-structure infos**
 ```bash
+  python scripts/get_struct_target_from_mol.py
+  -m all_input_data/molecule
+  -i all_input_data/inchikeys/components_inchikeys.csv
+  -o all_output_data/structure_target_from_molecules/
+  -e all_input_data/ensembl/pdb_chain_ensembl.csv
+  -l all_output_data/structure_target_from_molecules/log.txt
+  -f 
+  2> errors.log
 ```
 
 **Script 2: Get interacting residues with PLIP**
