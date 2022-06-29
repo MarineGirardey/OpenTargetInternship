@@ -1,11 +1,23 @@
 # Enrichment of the Open Targets Platform with structural annotations
 
+Marine Girardey - marine.girardey@gmail.com
+
+<a href="https://www.linkedin.com/in/marine-girardey/">
+  <img src="https://img.shields.io/badge/linkedin-%230077B5.svg?&style=for-the-badge&logo=linkedin&logoColor=white" />
+</a>&nbsp;&nbsp;
+
 6 months internship at the EMBL-EBI in the data team of Open Targets
+
+<p align='center'>
+  <img width="387" alt="ot" src="https://user-images.githubusercontent.com/77064839/176146051-e7d298d7-7863-4a12-978f-6514f6cd8eb3.png">
+  <img width="335" alt="ot" src="https://user-images.githubusercontent.com/77064839/176423103-8755774d-af4c-4997-8804-5ae0854d1096.png">
+</p>
+
+### Context
+
 Subject: Enrich the platform with structural information about the drug-target complex to provide an interactive display 
 of the 3D complex on the platform and create a new dataset from a new structure-based new association investigation.
 For more details, read my internship report here.
-
-<img width="387" alt="ot" src="https://user-images.githubusercontent.com/77064839/176146051-e7d298d7-7863-4a12-978f-6514f6cd8eb3.png">
 
 ### How to create Google Compute Engine instance?
 ```bash
