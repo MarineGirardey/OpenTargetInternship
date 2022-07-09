@@ -171,8 +171,8 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(add_help=True, description=program_description)
 
-    parser.add_argument('-p',
-                        '--parquet',
+    parser.add_argument('-m',
+                        '--molecule',
                         help='Path to parquet folder',
                         default=None,
                         metavar='parquet_file_path',

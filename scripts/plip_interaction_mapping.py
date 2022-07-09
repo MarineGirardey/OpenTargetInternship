@@ -97,7 +97,7 @@ class GetPDB:
     def get_pdb(self, pdb_structure_id: str) -> str:
         """
         Reading file (save in a string) from a given loaction fetch and save if not found from API
-        Objects:
+        Args:
             pdb_structure_id: id of the structure to get the PDB file
         Returns:
             data: the PDB structure file opened and returned as a string
