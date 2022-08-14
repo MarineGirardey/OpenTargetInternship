@@ -1,13 +1,38 @@
 # Enrichment of the Open Targets Platform with structural annotations
 
-6 months internship at the EMBL-EBI in the data team of Open Targets
-Subject: Enrich the platform with structural information about the drug-target complex to provide an interactive display 
+Open source code :computer:	:white_check_mark:	- Open source data :dna: :white_check_mark:	- Full documentation :books: :white_check_mark:	
+
+Marine Girardey - marine.girardey@gmail.com
+
+<a href="https://www.linkedin.com/in/marine-girardey/">
+  <img src="https://img.shields.io/badge/linkedin-%230077B5.svg?&style=for-the-badge&logo=linkedin&logoColor=white" />
+</a>&nbsp;&nbsp;
+
+[DLAD Master](https://formations.univ-amu.fr/fr/master/5SBI/PRSBI5AB) - [Aix-Marseille University](https://www.univ-amu.fr/en)
+
+6 months master internship at the [EMBL-EBI](https://www.ebi.ac.uk/), Hinxton in the data team of [Open Targets](https://www.opentargets.org/)
+
+<p align='center'>
+  <img width="387" alt="ot" src="https://user-images.githubusercontent.com/77064839/176146051-e7d298d7-7863-4a12-978f-6514f6cd8eb3.png">
+  <img width="335" alt="ot" src="https://user-images.githubusercontent.com/77064839/176423103-8755774d-af4c-4997-8804-5ae0854d1096.png">
+</p>
+
+## Context
+
+The Open Targets Platform provide annotations for target prioritization but none of the annotation comes from structural information.
+
+The goal of this project is to enrich the platform with structural information about the drug-target complex to provide an interactive display 
 of the 3D complex on the platform and create a new dataset from a new structure-based new association investigation.
-For more details, read my internship report here.
+For more details, read my [internship report]().
 
-<img width="387" alt="ot" src="https://user-images.githubusercontent.com/77064839/176146051-e7d298d7-7863-4a12-978f-6514f6cd8eb3.png">
+## Run the code
 
-### How to create Google Compute Engine instance?
+#### Quick info
+
+Note that the code have been runned on a n1-highcpu-64 google compute engine and take between 2 and 3 hours to run.
+
+#### 1. Create Google Compute Engine instance
+
 ```bash
 # Set parameters.
 export INSTANCE_NAME=mgirardey_project
@@ -31,7 +56,8 @@ gcloud compute ssh --zone ${INSTANCE_ZONE} ${INSTANCE_NAME}
 screen
 ```
 
-### How to configure the environment needed?
+#### 2. Configure the environment
+
 ```bash
 sudo apt update
 # python3-openbabel has to be installed globally because of a number of errors in the current PIP packaging
@@ -63,36 +89,72 @@ pip install --quiet --upgrade \
   requests \
 ```
 
-### Commands to reconnect to the machine and/or reactivate the environment
-* Reconnect: `gcloud compute ssh --zone ${INSTANCE_ZONE} ${INSTANCE_NAME}`
-* Restore previously created screen session: `screen -d -r`
-* Reactivate the environment: `cd ~/OpenTargetInternship && source venv/bin/activate`
+#### 3. Run the full code
 
-
-### How to run the full code?
-### How to run each script independently?
-
-# PLIP
-
-
-# Get Location
-
-## Run the analysis
 ```bash
-cd scripts
-mkdir -p pdb
-time python script_plip_interaction_mapping.py \
-  --input_file structure_for_plip_human_structures.csv \
-  --output_file output.csv \
-  --log_file log.txt \
-  --pdb_folder pdb
-mkdir -p residue_gen_pos_output
-time python residue_genomic_position_script.py \
-  --plip_input gene_mapped_structures.json \
-  --plip_output output.csv \
-  --output_folder residue_gen_pos_output \
-  --log_file genomic_position_log.txt
+chmod 755 all_scripts.sh
+./all_scripts.sh
 ```
 
+#### 4. Run each part separatly
 
-python scripts/residue_genomic_position.py -o output_file_location/output_loc.json -i output_file_plip/output_plip.json -p scripts/files_to_merge_genomic_loc/HUMAN_9606_idmapping.tsv -m scripts/files_to_merge_genomic_loc/generated_mappings.tsv -i output_file_plip/output_plip.json -l output_file_location/log.txt
+**Script 1: Get drug-target-structure infos**
+```bash
+  python scripts/get_struct_target_from_mol.py
+  -m all_input_data/molecule
+  -i all_input_data/inchikeys/components_inchikeys.csv
+  -o all_output_data/structure_target_from_molecules/
+  -e all_input_data/ensembl/pdb_chain_ensembl.csv
+  -l all_output_data/structure_target_from_molecules/log.txt
+  -f 
+  2> errors.log
+```
+
+**Script 2: Get interacting residues with PLIP**
+```bash
+  python scripts/plip_interaction_mapping.py
+  -i input_folder_plip/structure_drug_target_o.json/
+  -o output_file_plip/output_plip.json
+  -l output_file_plip/log.txt
+  -f structure_files/ 
+  2> errors.log
+```
+
+**Script 3: Get genomic location**
+```bash
+cd scripts
+time python scripts/residue_genomic_position.py 
+  -o output_file_location/output_loc.json
+  -i output_file_plip/output_plip.json 
+  -p scripts/files_to_merge_genomic_loc/HUMAN_9606_idmapping.tsv
+  -m scripts/files_to_merge_genomic_loc/generated_mappings.tsv
+  -i output_file_plip/output_plip.json
+  -l output_file_location/log.txt
+```
+
+**Script 4: Get new drug-disease associations**
+```bash
+  python scripts/drug_disease_new_evidence.py
+  -gl output_file_location/output_loc.json
+  -e ../evidence/
+  -m ../molecule
+  -i ../inchikey/
+  -d ../diseases/
+  -t ../targets/
+  -o output_evidence/output_evidence_filtered.csv
+  2> errors.log
+```
+
+#### Quick help
+
+**- Commands to reconnect to the machine**
+
+`gcloud compute ssh --zone ${INSTANCE_ZONE} ${INSTANCE_NAME}`
+
+**- Command to reactivate a screen session**
+
+`screen -d -r`
+
+**- Command to reactivate the environment**
+
+`cd ~/OpenTargetInternship && source venv/bin/activate`
